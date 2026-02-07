@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// SECUENCIA DE VIAJE (VERSION FINAL - CALIBRADA 360° Y ZOOM AJUSTADO)
+// SECUENCIA DE VIAJE (VERSION FINAL - SUELO MAGICO Y ZOOM CERCANO)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -623,8 +623,7 @@ function iniciarSecuenciaViaje(player, destino) {
     // Camara
     const anguloInicioCamara = yawRad; 
     
-    // CAMBIO: GIRO DE 360 GRADOS EXACTOS (2 * PI)
-    // 6.3 radianes es una vuelta completa perfecta
+    // GIRO DE 360 GRADOS EXACTOS
     const GIRO_TOTAL = 6.3; 
 
     const alturasPilar = [0.2, 0.7, 1.2, 1.7, 2.2, 2.7, 3.2, 3.7];
@@ -656,15 +655,15 @@ function iniciarSecuenciaViaje(player, destino) {
         }
 
         // =================================================
-        // MOVIMIENTO DE CAMARA (ESPIRAL FLUIDA)
+        // MOVIMIENTO DE CAMARA (MAS CERCANA)
         // =================================================
         if (player.camera && segundos < 6.5) {
             try {
-                // 1. Distancia: Ajustada (20% menos lejos)
-                // Empieza en 2.0 y se aleja 2.4 extra -> Maximo 4.4 bloques
-                const radioActual = 2.0 + (2.4 * Math.sin(progreso * Math.PI / 2));
+                // 1. Distancia: AHORA MAS CERCA
+                // Empieza en 2.0 y se aleja solo 1.5 extra -> Maximo 3.5 bloques (Antes 4.4)
+                const radioActual = 2.0 + (1.5 * Math.sin(progreso * Math.PI / 2));
                 
-                // 2. Altura: Sube hasta 4.5 bloques (igual que antes, se veia bien)
+                // 2. Altura: Sube hasta 4.5 bloques
                 const alturaActual = 1.6 + (2.9 * progreso);
                 
                 // 3. Angulo: Gira 360 grados exactos
@@ -721,7 +720,7 @@ function iniciarSecuenciaViaje(player, destino) {
         if (ticks >= 240) system.clearRun(runner);
 
         // =================================================
-        // PARTICULAS
+        // PARTICULAS (PILARES + SUELO MAGICO)
         // =================================================
         let velocidadGiro = 0;
         if (segundos < 7) velocidadGiro = 0.1 + Math.pow(segundos / 7, 2) * 0.5; 
@@ -732,6 +731,22 @@ function iniciarSecuenciaViaje(player, destino) {
 
         anguloParticulas += velocidadGiro;
 
+        // --- NUEVO: SUELO MAGICO (RELLENO) ---
+        // Generamos particulas aleatorias en el suelo para rellenar el circulo
+        if (velocidadGiro > 0.05) { // Solo cuando ya hay energia
+            for (let i = 0; i < 3; i++) { // 3 particulas por tick
+                const r = Math.random() * 2.5; // Radio aleatorio hasta el borde
+                const theta = Math.random() * 2 * Math.PI; // Angulo aleatorio
+                const px = posOrigen.x + r * Math.cos(theta);
+                const pz = posOrigen.z + r * Math.sin(theta);
+                try {
+                    dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
+                        { x: px, y: posOrigen.y + 0.1, z: pz });
+                } catch(e) {}
+            }
+        }
+
+        // --- PILARES GIRATORIOS (Igual que antes) ---
         if (velocidadGiro > 0.01) {
             const radio = 2.5; 
             const cosA = Math.cos(anguloParticulas);
