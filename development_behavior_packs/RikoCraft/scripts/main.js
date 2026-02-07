@@ -581,25 +581,48 @@ world.afterEvents.entityDie.subscribe((event) => {
 
     if (!killer || killer.typeId !== "minecraft:player") return;
 
-    // 1. Validar Clan del Asesino
+    // 1. Validar Clan del Asesino (Si el asesino no tiene clan, no gana nada)
     const clan = getClanDeJugador(killer.name);
     if (!clan) return;
 
-    // --- 🛡️ NUEVO: BLOQUEO DE FUEGO AMIGO (ANTI-GRANJA) ---
-    // Si la víctima es jugador, revisamos si es "compa"
+    // --- LÓGICA PVP AVANZADA (ANTI-GRANJA) ---
     if (victim.typeId === "minecraft:player") {
         const clanVictima = getClanDeJugador(victim.name);
         
-        // Si la víctima tiene clan Y es el mismo ID que el clan del asesino...
+        // REGLA A: FUEGO AMIGO
+        // Si la víctima es de tu mismo clan -> No XP
         if (clanVictima && clanVictima.id === clan.id) {
-            system.run(() => killer.sendMessage("§c[!] No ganas XP por matar miembros de tu propio clan."));
-            return; // ⛔ ¡ALTO AHÍ! Cancelamos la XP.
+            system.run(() => killer.sendMessage("§c[!] Fuego amigo: No ganas XP."));
+            return; 
+        }
+
+        // REGLA B: VÍCTIMA SIN CLAN (NUEVO)
+        // Si matas a un jugador que NO tiene clan -> No XP
+        if (!clanVictima) {
+            system.run(() => killer.onScreenDisplay.setActionBar("§7Jugador sin clan = Sin Recompensa"));
+            return; // Cortamos aquí.
         }
     }
     // ------------------------------------------------------
 
     // 2. Calcular XP
-    const xpReward = getConfigVar(`XP_MOB_${victim.typeId}`) || 0;
+    let xpReward = 0;
+
+    if (victim.typeId === "minecraft:player") {
+        // Buscamos si el Admin configuró un valor específico (Ej: 10)
+        const xpConfigurada = getConfigVar(`XP_MOB_${victim.typeId}`);
+        
+        // Si existe un valor configurado (y es mayor a 0), lo usamos.
+        // Si NO existe (es null/undefined), usamos 1 por defecto.
+        if (xpConfigurada && xpConfigurada > 0) {
+            xpReward = xpConfigurada;
+        } else {
+            xpReward = 1; // <--- VALOR PREDETERMINADO SI NO HAY CONFIG
+        }
+    } else {
+        // Para Mobs (Zombies, Creepers, etc) sigue la lógica normal (0 por defecto)
+        xpReward = getConfigVar(`XP_MOB_${victim.typeId}`) || 0;
+    }
 
     if (xpReward > 0) {
         const clanes = getDatosMundo(CONFIG.DB_CLANES);
@@ -613,14 +636,14 @@ world.afterEvents.entityDie.subscribe((event) => {
             const costoNivel = calcularCostoNivel(clanes[cIndex].nivel);
             
             // Si tiene suficiente XP y no es nivel máximo (100)
-            if (clanes[cIndex].xp >= costoNivel && clanes[cIndex].nivel < 100) { // AQUI PUEDES PONER EL NIVEL MAXIMO DEL CLAN
+            if (clanes[cIndex].xp >= costoNivel && clanes[cIndex].nivel < 100) { 
                 clanes[cIndex].xp -= costoNivel; // Restamos la XP usada
                 clanes[cIndex].nivel += 1;      // Subimos nivel
                 
                 // Anuncio Global Épico
                 world.sendMessage(`§6§l¡EL CLAN ${clanes[cIndex].tag} ALCANZÓ EL NIVEL ${clanes[cIndex].nivel}!`);
                 
-                // Sonidos para todos (o al menos para el que mató)
+                // Sonidos para todos
                 world.getPlayers().forEach(p => p.playSound("ambient.weather.thunder"));
             } else {
                 // Si no subió de nivel, solo sonido de XP normal
@@ -629,7 +652,6 @@ world.afterEvents.entityDie.subscribe((event) => {
                     killer.playSound("random.orb", { pitch: 1.5, volume: 1 });
                     
                     // --- FIX: PAUSAR EL HUD PRINCIPAL 2 SEGUNDOS ---
-                    // Así el mensaje de XP se queda visible y no lo borra el dinero
                     killer.setDynamicProperty("hud_pausa", Date.now() + 2000);
                 });
             }
