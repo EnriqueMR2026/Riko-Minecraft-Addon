@@ -678,27 +678,25 @@ function iniciarSecuenciaViaje(player, destino) {
         
         // Curvas de velocidad mas suaves
         if (segundos < 7) {
-            // Aceleracion mas lenta: Empieza muy despacio y sube gradualmente
-            // Antes multiplicabamos por 0.4, ahora por 0.3 para que no sea tan rapida
+            // Aceleracion mas lenta
             velocidadGiro = 0.1 + Math.pow(segundos / 7, 2) * 0.5; 
         } else {
             // Desaceleracion mas notoria
             const progresoFinal = (segundos - 7) / 5; 
-            velocidadGiro = 0.6 * (1 - Math.pow(progresoFinal, 0.5)); // Raiz cuadrada para frenado suave al principio y seco al final
+            velocidadGiro = 0.6 * (1 - Math.pow(progresoFinal, 0.5)); 
         }
 
         anguloAcumulado += velocidadGiro;
 
         if (velocidadGiro > 0.01) {
-            const radio = 2.5; // RADIO AUMENTADO (Más lejos del jugador)
+            const radio = 2.5; 
             
             // Calculamos posiciones base
             const cosA = Math.cos(anguloAcumulado);
             const sinA = Math.sin(anguloAcumulado);
             
-            // ¿Activamos los 4 pilares? 
-            // Solo si ya llevamos un rato girando (ej. más de 2.5 segundos) o si ya llegamos (frenando)
-            const activarCuatro = segundos > 2.5;
+            // CAMBIO: Activamos los 4 pilares a los 4.5 segundos (cuando ya va rapido)
+            const activarCuatro = segundos > 4.5;
 
             for (const alturaFija of alturasPilar) {
                 const py = player.location.y + alturaFija;
@@ -712,7 +710,6 @@ function iniciarSecuenciaViaje(player, destino) {
                         { x: player.location.x - (cosA * radio), y: py, z: player.location.z - (sinA * radio) });
 
                     // Par 2: Norte - Sur (Extra)
-                    // Usamos sinA en X y -cosA en Z para rotar 90 grados matematicamente
                     if (activarCuatro) {
                         dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                             { x: player.location.x + (sinA * radio), y: py, z: player.location.z - (cosA * radio) });
