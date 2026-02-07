@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// SECUENCIA DE VIAJE CINEMATOGRAFICA (VERSION FINAL - PILARES IMPONENTES)
+// SECUENCIA DE VIAJE CINEMATOGRAFICA (VERSION FINAL - CAMARA DRONE)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -598,13 +598,12 @@ function iniciarSecuenciaViaje(player, destino) {
     player.setDynamicProperty("warp_cd", ahora + 30000); 
 
     // 3. Preparar variables seguras
-    let posOrigen, hpComp, vidaAnterior, yawRadianes;
+    let posOrigen, hpComp, vidaAnterior, rotacionInicial;
     try {
         posOrigen = player.location;
         hpComp = player.getComponent("health");
         vidaAnterior = hpComp.currentValue;
-        // Obtenemos la rotacion y ajustamos para empezar a los costados
-        yawRadianes = (player.getRotation().y + 90) * (Math.PI / 180);
+        rotacionInicial = player.getRotation(); 
     } catch (e) { return; }
     
     // 4. AVISO
@@ -616,10 +615,35 @@ function iniciarSecuenciaViaje(player, destino) {
     let ticks = 0;
     
     // Configuración Visual
-    let anguloAcumulado = yawRadianes - (Math.PI / 2);
+    // Convertimos rotacion a radianes para calculos
+    const yawRad = (rotacionInicial.y + 90) * (Math.PI / 180);
+    let anguloAcumulado = yawRad - (Math.PI / 2); // Empezar a los costados
     
-    // PILAR DOBLE DE ALTO (Aprox 4 bloques)
+    // Pilares de particulas
     const alturasPilar = [0.2, 0.7, 1.2, 1.7, 2.2, 2.7, 3.2, 3.7];
+
+    // =================================================
+    // ESCENA 1: EL DESPEGUE (CAMARA)
+    // =================================================
+    if (player.camera) {
+        try {
+            // Calculamos una posicion ATRAS y ARRIBA del jugador
+            const distCam = 3.5;
+            // Invertimos el angulo para ir hacia atras
+            const camX = posOrigen.x - Math.cos(yawRad - Math.PI/2) * distCam; 
+            const camZ = posOrigen.z - Math.sin(yawRad - Math.PI/2) * distCam;
+            const camY = posOrigen.y + 3.0; // 3 bloques arriba para picado
+
+            player.camera.setCamera("minecraft:free", {
+                location: { x: camX, y: camY, z: camZ },
+                facingEntity: player, // Mirar siempre al jugador
+                easeOptions: {
+                    time: 4.0, // Tarda 4s en llegar a esa posicion (suave)
+                    easeType: "InOutSine"
+                }
+            });
+        } catch(e) {}
+    }
 
     // --- LOOP PRINCIPAL ---
     const runner = system.runInterval(() => {
@@ -647,41 +671,104 @@ function iniciarSecuenciaViaje(player, destino) {
         }
 
         // =================================================
+        // ESCENA 2: LA ORBITA (CAMARA 4s-7s)
+        // =================================================
+        // Solo activamos la orbita durante la fase de oscuridad
+        if (player.camera && ticks >= 80 && ticks < 140) {
+            // Hacemos que la camara gire siguiendo el angulo de las particulas
+            // pero con un radio mayor para ver todo el espectaculo
+            const radioCam = 4.0;
+            const camOrbitX = posOrigen.x + Math.cos(anguloAcumulado) * radioCam;
+            const camOrbitZ = posOrigen.z + Math.sin(anguloAcumulado) * radioCam;
+            const camOrbitY = posOrigen.y + 2.5;
+
+            // Actualizamos cada tick para efecto de giro fluido
+            try {
+                player.camera.setCamera("minecraft:free", {
+                    location: { x: camOrbitX, y: camOrbitY, z: camOrbitZ },
+                    facingLocation: { x: posOrigen.x, y: posOrigen.y + 1.5, z: posOrigen.z } // Mirar al pecho
+                });
+            } catch(e) {}
+        }
+
+
+        // =================================================
         // EVENTOS TEMPORALES
         // =================================================
         if (ticks === 80) { // 4s
             player.addEffect("darkness", 100, { amplifier: 255, showParticles: false });
             player.playSound("mob.warden.nearby_close");
         }
-        if (ticks === 140) { // 7s (TP)
+
+        // T=7s: EL TELETRANSPORTE Y ESCENA 3
+        if (ticks === 140) { 
             try {
                 const dimDestino = world.getDimension(destino.dim);
                 player.teleport({ x: destino.x, y: destino.y, z: destino.z }, { dimension: dimDestino });
                 dimActual = dimDestino; 
                 player.sendMessage(`§aHas llegado a ${destino.name}.`);
                 player.playSound("portal.travel");
+
+                // --- ESCENA 3: EL IMPACTO (ZOOM IN) ---
+                if (player.camera) {
+                    // Paso 1: Colocar camara frente a la cara (SNAP instantaneo)
+                    // Calculamos vector frente
+                    const newYawRad = (player.getRotation().y + 90) * (Math.PI / 180);
+                    const frontDist = 2.5; // Empezamos a 2.5 bloques de distancia
+                    
+                    const startX = destino.x + Math.cos(newYawRad) * frontDist;
+                    const startZ = destino.z + Math.sin(newYawRad) * frontDist;
+                    const eyeY = destino.y + 1.6;
+
+                    // Posicion Final (Dentro de la cabeza / Ojos)
+                    const endX = destino.x; // +0 distancia
+                    const endZ = destino.z;
+
+                    // Ejecutamos la transicion: De Frente -> A los Ojos
+                    // Truco: Ponemos la camara en Start y le decimos que vaya a End
+                    player.camera.setCamera("minecraft:free", {
+                        location: { x: startX, y: eyeY, z: startZ },
+                        facingLocation: { x: endX, y: eyeY, z: endZ } // Mirar a los ojos
+                    });
+
+                    // En el siguiente tick, iniciamos el viaje hacia adentro (Zoom)
+                    system.runTimeout(() => {
+                        try {
+                            player.camera.setCamera("minecraft:free", {
+                                location: { x: endX, y: eyeY, z: endZ }, // Destino: Ojos
+                                facingLocation: { x: endX + Math.cos(newYawRad)*5, y: eyeY, z: endZ + Math.sin(newYawRad)*5 }, // Mirar al horizonte
+                                easeOptions: {
+                                    time: 1.8, // 1.8 segundos para entrar en tu cuerpo
+                                    easeType: "Spring" // Efecto rebote suave al entrar
+                                }
+                            });
+                        } catch(e){}
+                    }, 1);
+                }
+
             } catch (e) {
                 cancelarViaje(player, runner, "Error: El destino no es valido."); return;
             }
         }
+
         if (ticks === 180) { // 9s
-            player.removeEffect("darkness"); player.playSound("random.levelup");
+            player.removeEffect("darkness"); 
+            player.playSound("random.levelup");
+            
+            // DEVUELVE LA CAMARA AL JUGADOR
+            if (player.camera) player.camera.clear();
         }
+
         if (ticks >= 240) { // 12s
             system.clearRun(runner);
         }
 
         // =================================================
-        // PARTICULAS MEJORADAS
+        // PARTICULAS (SIN CAMBIOS)
         // =================================================
         let velocidadGiro = 0;
-        
-        // Curvas de velocidad mas suaves
-        if (segundos < 7) {
-            // Aceleracion mas lenta
-            velocidadGiro = 0.1 + Math.pow(segundos / 7, 2) * 0.5; 
-        } else {
-            // Desaceleracion mas notoria
+        if (segundos < 7) velocidadGiro = 0.1 + Math.pow(segundos / 7, 2) * 0.5; 
+        else {
             const progresoFinal = (segundos - 7) / 5; 
             velocidadGiro = 0.6 * (1 - Math.pow(progresoFinal, 0.5)); 
         }
@@ -690,39 +777,40 @@ function iniciarSecuenciaViaje(player, destino) {
 
         if (velocidadGiro > 0.01) {
             const radio = 2.5; 
-            
-            // Calculamos posiciones base
             const cosA = Math.cos(anguloAcumulado);
             const sinA = Math.sin(anguloAcumulado);
-            
-            // CAMBIO: Activamos los 4 pilares a los 4.5 segundos (cuando ya va rapido)
             const activarCuatro = segundos > 4.5;
 
             for (const alturaFija of alturasPilar) {
                 const py = player.location.y + alturaFija;
-
                 try {
-                    // Par 1: Este - Oeste (Originales)
                     dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                         { x: player.location.x + (cosA * radio), y: py, z: player.location.z + (sinA * radio) });
-
                     dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                         { x: player.location.x - (cosA * radio), y: py, z: player.location.z - (sinA * radio) });
 
-                    // Par 2: Norte - Sur (Extra)
                     if (activarCuatro) {
                         dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                             { x: player.location.x + (sinA * radio), y: py, z: player.location.z - (cosA * radio) });
-
                         dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                             { x: player.location.x - (sinA * radio), y: py, z: player.location.z + (cosA * radio) });
                     }
-
                 } catch(e) {}
             }
         }
 
     }, 1);
+}
+
+// Función auxiliar
+function cancelarViaje(player, runner, motivo) {
+    system.clearRun(runner);
+    try {
+        player.removeEffect("darkness");
+        if (player.camera) player.camera.clear(); // Importante: Devolver camara si falla
+    } catch(e) {}
+    player.sendMessage(`§c[!] ${motivo}`);
+    player.playSound("mob.villager.no");
 }
 
 // =============================================================================
