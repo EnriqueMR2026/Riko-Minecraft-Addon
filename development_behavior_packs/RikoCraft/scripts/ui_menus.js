@@ -45,13 +45,13 @@ function forzarApertura(player, menu, callback) {
 // 📱 MENÚ PRINCIPAL (CORREGIDO: ADMIN IGNORA CANDADOS)
 // =============================================================================
 export function mostrarMenuPrincipal(player) {
-    // 1. Detectar si es DIOS
+    // 1. Detectar si es ADMIN (Dios)
     const esAdmin = player.hasTag(CONFIG.TAG_ADMIN);
     const zonaActual = obtenerZonaActual(player);
     
-    // 2. Lógica de Candados:
+    // 2. Lógica de Candados (Bloqueos):
     // Solo bloqueamos SI TIENE EL TAG... Y NO ES ADMIN.
-    // Si eres Admin, 'enMinijuego' y 'enZonaAdmin' siempre serán FALSE para que no te bloquee.
+    // Si eres Admin, 'enMinijuego' y 'enZonaAdmin' siempre serán FALSE para que no te bloquee nada.
     const enMinijuego = !esAdmin && player.hasTag("minijuego"); 
     const enZonaAdmin = !esAdmin && (zonaActual !== undefined);
 
@@ -85,6 +85,7 @@ export function mostrarMenuPrincipal(player) {
         menu.button("§l§7>>  §6Gamemode  §7<<", "textures/items/diamond_pickaxe");
     }
 
+    // Usamos la herramienta de insistencia para abrirlo
     forzarApertura(player, menu, (response) => {
         if (response.canceled) return;
 
