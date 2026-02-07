@@ -614,7 +614,7 @@ function iniciarSecuenciaViaje(player, destino) {
     // ShowParticles: false para que no salgan las espirales grises feas de la poción
     player.addEffect("slowness", 180, { amplifier: 255, showParticles: false });
     
-    player.sendMessage(`§e🔮 Iniciando viaje a §f${destino.name}§e... No te muevas (7s).`);
+    player.sendMessage(`§eIniciando viaje a §f${destino.name}§e... No te muevas (7s).`);
     player.playSound("beacon.activate"); // Sonido místico de inicio
 
     // Variable para saber en qué dimensión dibujar partículas (Origen vs Destino)
