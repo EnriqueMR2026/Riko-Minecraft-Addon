@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// SECUENCIA DE VIAJE (VERSION SINCRONIZADA - FRENTE AL JUGADOR)
+// SECUENCIA DE VIAJE (VERSION SINCRONIZADA PERFECTA)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -614,15 +614,17 @@ function iniciarSecuenciaViaje(player, destino) {
     let dimActual = player.dimension;
     let ticks = 0;
     
-    // --- CONFIGURACION VISUAL MATEMATICA ---
-    // Convertimos la rotacion del jugador a radianes matematicos
+    // --- CONFIGURACION VISUAL UNIFICADA (SIN SALTOS) ---
+    // Altura constante para la camara (Despegue y Orbita)
+    const ALTURA_CAMARA = 3.0; 
+    // Distancia constante (Radio)
+    const RADIO_CAMARA = 4.5; 
+
+    // Angulos
     const yawRad = (rotacionInicial.y + 90) * (Math.PI / 180);
-    
-    // Particulas: Empiezan a los costados (Izquierda/Derecha) para rodearte
     let anguloParticulas = yawRad - (Math.PI / 2);
     
-    // Camara: Empieza EN EL FRENTE (Mismo angulo que tu vista)
-    // Asi coincide perfectamente con el movimiento de despegue
+    // La camara empieza mirando al frente (yawRad)
     let anguloCamara = yawRad; 
 
     const alturasPilar = [0.2, 0.7, 1.2, 1.7, 2.2, 2.7, 3.2, 3.7];
@@ -632,16 +634,14 @@ function iniciarSecuenciaViaje(player, destino) {
     // =================================================
     if (player.camera) {
         try {
-            const distCam = 4.0; 
-            // Usamos SUMA (+) para ir hacia adelante (donde miras)
-            // Usamos Math.cos(yawRad) directo para la posicion Frontal
-            const camX = posOrigen.x + Math.cos(yawRad) * distCam; 
-            const camZ = posOrigen.z + Math.sin(yawRad) * distCam;
-            const camY = posOrigen.y + 2.5; 
+            // Usamos las constantes UNIFICADAS para calcular el destino del despegue
+            const camX = posOrigen.x + Math.cos(yawRad) * RADIO_CAMARA; 
+            const camZ = posOrigen.z + Math.sin(yawRad) * RADIO_CAMARA;
+            const camY = posOrigen.y + ALTURA_CAMARA; 
 
             player.camera.setCamera("minecraft:free", {
                 location: { x: camX, y: camY, z: camZ },
-                facingEntity: player, // La camara te mira a ti
+                facingEntity: player,
                 easeOptions: {
                     time: 3.0, 
                     easeType: "InOutCubic" 
@@ -676,19 +676,19 @@ function iniciarSecuenciaViaje(player, destino) {
         }
 
         // =================================================
-        // MOVIMIENTO DE CAMARA (ORBITA DESDE EL FRENTE)
+        // MOVIMIENTO DE CAMARA (ORBITA INVERTIDA)
         // =================================================
         // Inicia al seg 3, justo donde termino el despegue
         if (player.camera && segundos > 3 && segundos < 6.5) {
-            // Giramos lento
-            anguloCamara += 0.02; 
+            // CAMBIO: Invertimos el giro (-=)
+            anguloCamara -= 0.02; 
 
-            const radioCam = 4.5;
-            // Usamos el anguloCamara que INICIO en yawRad (Frente)
-            // Por lo tanto, continua el movimiento suavemente
-            const camOrbitX = posOrigen.x + Math.cos(anguloCamara) * radioCam;
-            const camOrbitZ = posOrigen.z + Math.sin(anguloCamara) * radioCam;
-            const camOrbitY = posOrigen.y + 3.0;
+            // Usamos las mismas constantes RADIO_CAMARA y ALTURA_CAMARA
+            // Al empezar, anguloCamara es igual a yawRad, asi que la posicion
+            // es IDENTICA a donde termino el despegue. ¡Cero saltos!
+            const camOrbitX = posOrigen.x + Math.cos(anguloCamara) * RADIO_CAMARA;
+            const camOrbitZ = posOrigen.z + Math.sin(anguloCamara) * RADIO_CAMARA;
+            const camOrbitY = posOrigen.y + ALTURA_CAMARA;
 
             try {
                 player.camera.setCamera("minecraft:free", {
@@ -703,7 +703,7 @@ function iniciarSecuenciaViaje(player, destino) {
         // =================================================
         if (ticks === 80) player.playSound("mob.warden.nearby_close");
 
-        // FADE TO BLACK (Pantalla Negra)
+        // FADE TO BLACK
         if (ticks === 130) {
             if (player.camera) {
                 try {
@@ -773,6 +773,7 @@ function iniciarSecuenciaViaje(player, destino) {
 
     }, 1);
 }
+
 // Funcion auxiliar
 function cancelarViaje(player, runner, motivo) {
     system.clearRun(runner);
