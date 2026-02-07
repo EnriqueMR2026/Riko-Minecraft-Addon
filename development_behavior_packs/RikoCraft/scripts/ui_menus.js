@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// SECUENCIA DE VIAJE (VERSION ESPIRAL CONTINUA - SIN PAUSAS)
+// SECUENCIA DE VIAJE (VERSION FINAL - GIRO RAPIDO Y COMPLETO)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -617,16 +617,16 @@ function iniciarSecuenciaViaje(player, destino) {
     // --- CONFIGURACION VISUAL ---
     const yawRad = (rotacionInicial.y + 90) * (Math.PI / 180);
     
-    // Particulas (Giran Rapido)
+    // Particulas
     let anguloParticulas = yawRad - (Math.PI / 2);
     
-    // Configuración de la Espiral de Cámara
-    // Empezamos EXACTAMENTE donde mira el jugador (Frente)
+    // Camara (Empieza al FRENTE)
     const anguloInicioCamara = yawRad; 
     
-    // ¿Cuanto girará en total? (Casi una vuelta completa: 5 radianes ≈ 280 grados)
-    // Si quieres más vueltas, aumenta este numero.
-    const GIRO_TOTAL = 5.0; 
+    // --- CAMBIO: AUMENTO DE VELOCIDAD ---
+    // 9.0 radianes son aprox 1.5 vueltas completas.
+    // Esto asegura que gire rapido antes de oscurecerse.
+    const GIRO_TOTAL = 9.0; 
 
     const alturasPilar = [0.2, 0.7, 1.2, 1.7, 2.2, 2.7, 3.2, 3.7];
 
@@ -638,7 +638,6 @@ function iniciarSecuenciaViaje(player, destino) {
 
         ticks++;
         const segundos = ticks / 20;
-        // Progreso de 0.0 a 1.0 durante los 7 segundos (140 ticks)
         const progreso = Math.min(ticks / 140, 1.0);
 
         // =================================================
@@ -658,46 +657,38 @@ function iniciarSecuenciaViaje(player, destino) {
         }
 
         // =================================================
-        // MOVIMIENTO DE CAMARA (ESPIRAL FLUIDA)
+        // MOVIMIENTO DE CAMARA (ESPIRAL RAPIDA)
         // =================================================
-        // Actualizamos la camara CADA TICK para que sea inmediato y suave
         if (player.camera && segundos < 6.5) {
             try {
-                // CALCULO DINAMICO DE POSICION
+                // 1. Distancia: Se aleja un poco más rapido (hasta 5.5 bloques)
+                const radioActual = 2.0 + (3.5 * Math.sin(progreso * Math.PI / 2));
                 
-                // 1. Distancia: Empieza cerca (2m) y se aleja hasta (5m)
-                // Usamos una curva suave (ease out) para que no se aleje linealmente aburrido
-                const radioActual = 2.0 + (3.0 * Math.sin(progreso * Math.PI / 2));
+                // 2. Altura: Sube hasta 5 bloques para ver bien desde arriba
+                const alturaActual = 1.6 + (3.4 * progreso);
                 
-                // 2. Altura: Empieza en los ojos (1.6) y sube hasta (4.5)
-                const alturaActual = 1.6 + (2.9 * progreso);
-                
-                // 3. Angulo: Empieza al frente y gira CONSTANTEMENTE
-                // Restamos para girar hacia la derecha (sentido horario)
+                // 3. Angulo: Gira 9 radianes en total (Velocidad Aumentada)
                 const anguloActual = anguloInicioCamara - (progreso * GIRO_TOTAL);
 
-                // Convertimos polar a cartesiano
                 const camX = posOrigen.x + Math.cos(anguloActual) * radioActual;
                 const camZ = posOrigen.z + Math.sin(anguloActual) * radioActual;
                 const camY = posOrigen.y + alturaActual;
 
                 player.camera.setCamera("minecraft:free", {
                     location: { x: camX, y: camY, z: camZ },
-                    facingLocation: { x: posOrigen.x, y: posOrigen.y + 1.2, z: posOrigen.z } // Mira siempre al pecho
+                    facingLocation: { x: posOrigen.x, y: posOrigen.y + 1.2, z: posOrigen.z }
                 });
             } catch(e) {}
         }
 
         // =================================================
-        // EVENTOS TEMPORALES (SONIDOS Y FADE)
+        // EVENTOS TEMPORALES
         // =================================================
-        
-        // Efecto sonoro progresivo
-        if (ticks === 1) player.playSound("beacon.ambient"); // Zumbido inicial
-        if (ticks === 60) player.playSound("mob.warden.heartbeat"); // Latido al seg 3
-        if (ticks === 100) player.playSound("mob.warden.nearby_close"); // Climax al seg 5
+        if (ticks === 1) player.playSound("beacon.ambient");
+        if (ticks === 60) player.playSound("mob.warden.heartbeat");
+        if (ticks === 100) player.playSound("mob.warden.nearby_close");
 
-        // FADE TO BLACK (Pantalla Negra antes del TP)
+        // FADE TO BLACK
         if (ticks === 130) {
             if (player.camera) {
                 try {
@@ -719,7 +710,6 @@ function iniciarSecuenciaViaje(player, destino) {
                 player.playSound("portal.travel");
                 player.sendMessage(`§aHas llegado a ${destino.name}.`);
 
-                // Limpiamos camara durante el negro
                 if (player.camera) player.camera.clear();
 
             } catch (e) {
@@ -731,7 +721,7 @@ function iniciarSecuenciaViaje(player, destino) {
         if (ticks >= 240) system.clearRun(runner);
 
         // =================================================
-        // PARTICULAS (SIN CAMBIOS)
+        // PARTICULAS
         // =================================================
         let velocidadGiro = 0;
         if (segundos < 7) velocidadGiro = 0.1 + Math.pow(segundos / 7, 2) * 0.5; 
