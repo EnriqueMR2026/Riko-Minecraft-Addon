@@ -512,35 +512,38 @@ function menuCrearWaypoint(player) {
 }
 
 function menuListaWaypoints(player, verPublicos) {
-    // Decidimos qué lista cargar
+    // Decidimos qué lista cargar (Pública o Privada)
     const lista = verPublicos ? (getDatosMundo("db_warps_publicos") || []) : getWaypoints(player);
 
     if (lista.length === 0) {
-        player.sendMessage(verPublicos ? "§eNo hay Warps Públicos por ahora." : "§eNo tienes ubicaciones guardadas, primero añade uno.");
-        return; // <--- CAMBIO: Regresa al menú anterior para fluidez
+        player.sendMessage(verPublicos ? "§eNo hay Warps Públicos por ahora." : "§eNo tienes ubicaciones guardadas, primero añade una.");
+        // Regresa al menú anterior para que no se cierre feo
+        return mostrarMenuViajes(player); 
     }
 
     const menu = new ActionFormData().title(verPublicos ? "Ubicaciones del Realm" : "Mis Ubicaciones");
+    
+    // Generamos los botones para cada warp
     lista.forEach(wp => menu.button(`§l${wp.name}\n§r§0${wp.x}, ${wp.y}, ${wp.z}`));
 
-    // Botón de borrar (Solo si es mío o si soy Admin viendo públicos)
+    // Botón de borrar (Solo si es mi lista privada o si soy Admin viendo públicos)
     const puedeBorrar = !verPublicos || player.hasTag(CONFIG.TAG_ADMIN);
     if (puedeBorrar) menu.button("§l§4[BORRAR UBICACIÓN]", "textures/botones/eliminar");
 
     menu.show(player).then(r => {
-        if (r.canceled) return mostrarMenuViajes(player); // <--- CAMBIO: Regresa si le das a la tache (X)
+        // Si cancela (X), regresa al menú de viajes
+        if (r.canceled) return mostrarMenuViajes(player); 
         
-        // Si pulsó borrar (es el último botón)
+        // Si pulsó el botón de borrar (es el último botón de la lista)
         if (puedeBorrar && r.selection === lista.length) {
             menuBorrarWaypoint(player, verPublicos, lista); 
             return;
         }
-
-        // Viajar
+        // Obtenemos el destino seleccionado
         const destino = lista[r.selection];
-        player.teleport({ x: destino.x, y: destino.y, z: destino.z }, { dimension: world.getDimension(destino.dim) });
-        player.playSound("mob.shulker.teleport");
-        player.sendMessage(`§aViajando a: ${destino.name}`);
+        
+        // En lugar de TP directo, iniciamos la cinemática
+        iniciarSecuenciaViaje(player, destino); 
     });
 }
 
