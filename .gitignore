@@ -1,14 +1,15 @@
-# 1. Ignorar TODO por defecto (para no subir tus mundos ni basura)
+# 1. Ignorar TODO por defecto
 *
 
-# 2. Permitir (No ignorar) la estructura de carpetas
+# 2. Permitir carpetas (para que Git pueda ver dentro)
 !*/
-!development_behavior_packs/
-!development_resource_packs/
 
-# 3. Permitir TU ADDON ESPECÍFICO (Cambia "RikoCraft" por el nombre real de tu carpeta)
+# 3. ¡IMPORTANTE! Volver a ignorar la carpeta .vscode
+.vscode/
+
+# 4. Permitir TU ADDON (RikoCraft)
 !development_behavior_packs/RikoCraft/**
 !development_resource_packs/RikoCraft/**
 
-# 4. Permitir este mismo archivo gitignore
+# 5. Permitir este archivo
 !.gitignore
