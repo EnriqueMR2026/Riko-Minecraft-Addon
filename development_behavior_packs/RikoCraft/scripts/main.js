@@ -280,7 +280,7 @@ world.beforeEvents.chatSend.subscribe((event) => {
     }
 
     // ---> CASO A: DETECTOR DEL MENÚ PRINCIPAL (@menu) <---
-    if (message.toLowerCase() === `${CONFIG.PREFIJO}menu`) {
+    if (message.toLowerCase() === `${CONFIG.PREFIJO}menu10`) {
         event.cancel = true; // Evita que salga "@menu" en el chat público
         
         // Usamos system.run para poder abrir la ventana (UI)
