@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// 🔮 SECUENCIA DE VIAJE CINEMATOGRÁFICA (CORREGIDA)
+// SECUENCIA DE VIAJE CINEMATOGRAFICA (MEJORADA)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -589,7 +589,7 @@ function iniciarSecuenciaViaje(player, destino) {
     
     if (ahora < cooldown) {
         const segundosFaltan = Math.ceil((cooldown - ahora) / 1000);
-        player.sendMessage(`§cTu energía mágica se está recuperando. Espera ${segundosFaltan}s.`);
+        player.sendMessage(`§cTu energia magica se esta recuperando. Espera ${segundosFaltan}s.`);
         player.playSound("random.fizz");
         return;
     }
@@ -597,8 +597,7 @@ function iniciarSecuenciaViaje(player, destino) {
     // 2. Establecer castigo
     player.setDynamicProperty("warp_cd", ahora + 30000); 
 
-    // 3. Preparar variables
-    // Envolvemos en try-catch por si el jugador se desconecta justo al iniciar
+    // 3. Preparar variables seguras
     let posOrigen, hpComp, vidaAnterior;
     try {
         posOrigen = player.location;
@@ -606,24 +605,20 @@ function iniciarSecuenciaViaje(player, destino) {
         vidaAnterior = hpComp.currentValue;
     } catch (e) { return; }
     
-    // 4. AVISO (Ya no aplicamos Slowness para evitar el zoom feo)
+    // 4. AVISO (Sin emojis)
     player.sendMessage(`§eIniciando viaje a §f${destino.name}§e... No te muevas (7s).`);
     player.playSound("beacon.activate");
 
-    // Variable para saber en qué dimensión dibujar partículas
+    // Variable para saber en que dimension dibujar particulas
     let dimActual = player.dimension;
     let ticks = 0;
 
     // --- LOOP PRINCIPAL ---
     const runner = system.runInterval(() => {
-        // [CORRECCION ERROR 627]
-        // En lugar de player.isValid(), usamos un bloque seguro.
-        // Si el jugador no existe o se fue, acceder a sus propiedades dará error.
+        // Verificacion de seguridad anti-crash
         try {
-            // Verificamos si sigue online intentando leer su nombre
             const _check = player.name; 
         } catch (e) {
-            // Si falla, es que se desconectó. Limpiamos y nos vamos.
             system.clearRun(runner);
             return;
         }
@@ -632,24 +627,22 @@ function iniciarSecuenciaViaje(player, destino) {
         const segundos = ticks / 20;
 
         // =================================================
-        // FASE 1: VIGILANCIA (Segundos 0 a 7)
+        // FASE 1: VIGILANCIA (0 a 7s)
         // =================================================
         if (segundos < 7) {
             // A. Detector de Movimiento
-            // Como quitamos la lentitud, esto es lo que evita que se muevan.
             const dx = Math.abs(player.location.x - posOrigen.x);
             const dz = Math.abs(player.location.z - posOrigen.z);
             
-            // Si camina más de medio bloque -> CANCELADO
             if (dx > 0.5 || dz > 0.5) {
-                cancelarViaje(player, runner, "¡Te moviste! Concentración rota.");
+                cancelarViaje(player, runner, "Te moviste! Concentracion rota.");
                 return;
             }
 
             // B. Detector de Daño
             const vidaActual = hpComp.currentValue;
             if (vidaActual < vidaAnterior) {
-                cancelarViaje(player, runner, "¡Te han herido! Viaje interrumpido.");
+                cancelarViaje(player, runner, "Te han herido! Viaje interrumpido.");
                 return;
             }
             vidaAnterior = vidaActual; 
@@ -659,7 +652,7 @@ function iniciarSecuenciaViaje(player, destino) {
         // EVENTOS TEMPORALES
         // =================================================
 
-        // T=4s: Efecto Darkness (Este NO hace zoom, solo oscurece)
+        // T=4s: Efecto Darkness
         if (ticks === 80) { 
             player.addEffect("darkness", 100, { amplifier: 255, showParticles: false });
             player.playSound("mob.warden.nearby_close");
@@ -674,7 +667,7 @@ function iniciarSecuenciaViaje(player, destino) {
                 player.sendMessage(`§aHas llegado a ${destino.name}.`);
                 player.playSound("portal.travel");
             } catch (e) {
-                cancelarViaje(player, runner, "Error: El destino no es válido.");
+                cancelarViaje(player, runner, "Error: El destino no es valido.");
                 return;
             }
         }
@@ -691,7 +684,7 @@ function iniciarSecuenciaViaje(player, destino) {
         }
 
         // =================================================
-        // PARTÍCULAS
+        // PARTICULAS (NUEVO DISEÑO)
         // =================================================
         let velocidad = 0;
         if (segundos < 7) velocidad = 0.5 + (segundos / 7) * 2.5;
@@ -703,30 +696,36 @@ function iniciarSecuenciaViaje(player, destino) {
         if (velocidad > 0.1) {
             const radio = 1.5;
             const angulo = ticks * velocidad;
+            
             const px = Math.cos(angulo) * radio;
             const pz = Math.sin(angulo) * radio;
-            const py = 1 + Math.sin(ticks * 0.1) * 0.5; 
+            
+            // Movimiento vertical suave (flotar)
+            const py = 1 + Math.sin(ticks * 0.2) * 0.5; 
 
             try {
-                dimActual.spawnParticle("minecraft:dragon_breath_trail", 
+                // CAMBIO: Usamos 'obsidian_glow_dust_particle'
+                // Es morada, pequeña y desaparece rapido (da efecto de chispa electrica)
+                dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                     { x: player.location.x + px, y: player.location.y + py, z: player.location.z + pz });
                 
-                dimActual.spawnParticle("minecraft:dragon_breath_trail", 
+                // Segunda particula opuesta
+                dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                     { x: player.location.x - px, y: player.location.y + py, z: player.location.z - pz });
+
             } catch(e) {}
         }
 
     }, 1);
 }
 
-// Función auxiliar segura
+// Función auxiliar sin emojis
 function cancelarViaje(player, runner, motivo) {
     system.clearRun(runner);
     try {
-        // Ya no hay slowness que quitar
         player.removeEffect("darkness");
     } catch(e) {}
-    player.sendMessage(`§c❌ ${motivo}`);
+    player.sendMessage(`§c[!] ${motivo}`);
     player.playSound("mob.villager.no");
 }
 
