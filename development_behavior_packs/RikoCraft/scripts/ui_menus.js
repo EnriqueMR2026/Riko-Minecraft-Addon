@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// SECUENCIA DE VIAJE CINEMATOGRAFICA (MEJORADA)
+// SECUENCIA DE VIAJE CINEMATOGRAFICA (VERSION FINAL - GIRO UNICO)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -605,20 +605,19 @@ function iniciarSecuenciaViaje(player, destino) {
         vidaAnterior = hpComp.currentValue;
     } catch (e) { return; }
     
-    // 4. AVISO (Sin emojis)
+    // 4. AVISO
     player.sendMessage(`§eIniciando viaje a §f${destino.name}§e... No te muevas (7s).`);
     player.playSound("beacon.activate");
 
-    // Variable para saber en que dimension dibujar particulas
+    // Variables de control
     let dimActual = player.dimension;
     let ticks = 0;
+    let anguloAcumulado = 0; // <--- NUEVO: Guardamos el angulo aqui para que nunca retroceda
 
     // --- LOOP PRINCIPAL ---
     const runner = system.runInterval(() => {
-        // Verificacion de seguridad anti-crash
-        try {
-            const _check = player.name; 
-        } catch (e) {
+        // Seguridad anti-crash
+        try { const _check = player.name; } catch (e) {
             system.clearRun(runner);
             return;
         }
@@ -630,7 +629,6 @@ function iniciarSecuenciaViaje(player, destino) {
         // FASE 1: VIGILANCIA (0 a 7s)
         // =================================================
         if (segundos < 7) {
-            // A. Detector de Movimiento
             const dx = Math.abs(player.location.x - posOrigen.x);
             const dz = Math.abs(player.location.z - posOrigen.z);
             
@@ -639,7 +637,6 @@ function iniciarSecuenciaViaje(player, destino) {
                 return;
             }
 
-            // B. Detector de Daño
             const vidaActual = hpComp.currentValue;
             if (vidaActual < vidaAnterior) {
                 cancelarViaje(player, runner, "Te han herido! Viaje interrumpido.");
@@ -651,15 +648,12 @@ function iniciarSecuenciaViaje(player, destino) {
         // =================================================
         // EVENTOS TEMPORALES
         // =================================================
-
-        // T=4s: Efecto Darkness
-        if (ticks === 80) { 
+        if (ticks === 80) { // 4s
             player.addEffect("darkness", 100, { amplifier: 255, showParticles: false });
             player.playSound("mob.warden.nearby_close");
         }
 
-        // T=7s: EL TELETRANSPORTE
-        if (ticks === 140) {
+        if (ticks === 140) { // 7s (TP)
             try {
                 const dimDestino = world.getDimension(destino.dim);
                 player.teleport({ x: destino.x, y: destino.y, z: destino.z }, { dimension: dimDestino });
@@ -672,44 +666,50 @@ function iniciarSecuenciaViaje(player, destino) {
             }
         }
 
-        // T=9s: Limpieza
-        if (ticks === 180) {
+        if (ticks === 180) { // 9s
             player.removeEffect("darkness");
             player.playSound("random.levelup");
         }
 
-        // T=12s: Fin
-        if (ticks >= 240) {
+        if (ticks >= 240) { // 12s
             system.clearRun(runner);
         }
 
         // =================================================
-        // PARTICULAS (NUEVO DISEÑO)
+        // PARTICULAS (LOGICA DE GIRO CORREGIDA)
         // =================================================
-        let velocidad = 0;
-        if (segundos < 7) velocidad = 0.5 + (segundos / 7) * 2.5;
-        else {
+        
+        // 1. Calcular velocidad de giro (Rad/tick)
+        let velocidadGiro = 0;
+        
+        if (segundos < 7) {
+            // Acelera suavemente
+            velocidadGiro = 0.2 + (segundos / 7) * 0.4; 
+        } else {
+            // Desacelera hasta frenar
             const progresoFinal = (segundos - 7) / 5; 
-            velocidad = 3.0 * (1 - progresoFinal);
+            velocidadGiro = 0.6 * (1 - progresoFinal);
         }
 
-        if (velocidad > 0.1) {
+        // 2. Acumular angulo (Siempre suma -> Siempre gira horario)
+        anguloAcumulado += velocidadGiro;
+
+        // Solo dibujamos si se mueve un poco
+        if (velocidadGiro > 0.01) {
             const radio = 1.5;
-            const angulo = ticks * velocidad;
             
-            const px = Math.cos(angulo) * radio;
-            const pz = Math.sin(angulo) * radio;
-            
-            // Movimiento vertical suave (flotar)
-            const py = 1 + Math.sin(ticks * 0.2) * 0.5; 
+            // Usamos el angulo acumulado
+            const px = Math.cos(anguloAcumulado) * radio;
+            const pz = Math.sin(anguloAcumulado) * radio;
+            const py = 1 + Math.sin(ticks * 0.15) * 0.5; // Flotar suave
 
             try {
-                // CAMBIO: Usamos 'obsidian_glow_dust_particle'
-                // Es morada, pequeña y desaparece rapido (da efecto de chispa electrica)
+                // Particula 1
                 dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                     { x: player.location.x + px, y: player.location.y + py, z: player.location.z + pz });
                 
-                // Segunda particula opuesta
+                // Particula 2 (Espejo / Lado opuesto)
+                // Simplemente restamos px y pz para ponerla al otro lado
                 dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                     { x: player.location.x - px, y: player.location.y + py, z: player.location.z - pz });
 
@@ -717,16 +717,6 @@ function iniciarSecuenciaViaje(player, destino) {
         }
 
     }, 1);
-}
-
-// Función auxiliar sin emojis
-function cancelarViaje(player, runner, motivo) {
-    system.clearRun(runner);
-    try {
-        player.removeEffect("darkness");
-    } catch(e) {}
-    player.sendMessage(`§c[!] ${motivo}`);
-    player.playSound("mob.villager.no");
 }
 
 // =============================================================================
