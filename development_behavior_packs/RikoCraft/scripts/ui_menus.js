@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// SECUENCIA DE VIAJE CINEMATOGRAFICA (VERSION FINAL - CAMARA DRONE)
+// SECUENCIA DE VIAJE (VERSION FADE-TO-BLACK 10/10)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -614,32 +614,34 @@ function iniciarSecuenciaViaje(player, destino) {
     let dimActual = player.dimension;
     let ticks = 0;
     
-    // Configuración Visual
-    // Convertimos rotacion a radianes para calculos
+    // --- CONFIGURACION VISUAL ---
+    // Particulas (Giran Rapido)
     const yawRad = (rotacionInicial.y + 90) * (Math.PI / 180);
-    let anguloAcumulado = yawRad - (Math.PI / 2); // Empezar a los costados
+    let anguloParticulas = yawRad - (Math.PI / 2);
     
-    // Pilares de particulas
+    // Camara (Gira Lento - Solo para cinematica)
+    // Empezamos atras del jugador
+    let anguloCamara = yawRad - (Math.PI / 2); 
+
     const alturasPilar = [0.2, 0.7, 1.2, 1.7, 2.2, 2.7, 3.2, 3.7];
 
     // =================================================
-    // ESCENA 1: EL DESPEGUE (CAMARA)
+    // ESCENA 1: EL DESPEGUE SUAVE
     // =================================================
     if (player.camera) {
         try {
-            // Calculamos una posicion ATRAS y ARRIBA del jugador
-            const distCam = 3.5;
-            // Invertimos el angulo para ir hacia atras
+            // Posicion inicial de la camara (Atras y Arriba)
+            const distCam = 4.0; 
             const camX = posOrigen.x - Math.cos(yawRad - Math.PI/2) * distCam; 
             const camZ = posOrigen.z - Math.sin(yawRad - Math.PI/2) * distCam;
-            const camY = posOrigen.y + 3.0; // 3 bloques arriba para picado
+            const camY = posOrigen.y + 2.5; 
 
             player.camera.setCamera("minecraft:free", {
                 location: { x: camX, y: camY, z: camZ },
-                facingEntity: player, // Mirar siempre al jugador
+                facingEntity: player,
                 easeOptions: {
-                    time: 4.0, // Tarda 4s en llegar a esa posicion (suave)
-                    easeType: "InOutSine"
+                    time: 3.0, // 3 segundos para acomodarse suavemente
+                    easeType: "InOutCubic" // Curva de movimiento mas organica
                 }
             });
         } catch(e) {}
@@ -655,7 +657,7 @@ function iniciarSecuenciaViaje(player, destino) {
         const segundos = ticks / 20;
 
         // =================================================
-        // FASE 1: VIGILANCIA (0 a 7s)
+        // VIGILANCIA (0 a 7s)
         // =================================================
         if (segundos < 7) {
             const dx = Math.abs(player.location.x - posOrigen.x);
@@ -671,119 +673,104 @@ function iniciarSecuenciaViaje(player, destino) {
         }
 
         // =================================================
-        // ESCENA 2: LA ORBITA (CAMARA 4s-7s)
+        // MOVIMIENTO DE CAMARA (ORBITA ELEGANTE)
         // =================================================
-        // Solo activamos la orbita durante la fase de oscuridad
-        if (player.camera && ticks >= 80 && ticks < 140) {
-            // Hacemos que la camara gire siguiendo el angulo de las particulas
-            // pero con un radio mayor para ver todo el espectaculo
-            const radioCam = 4.0;
-            const camOrbitX = posOrigen.x + Math.cos(anguloAcumulado) * radioCam;
-            const camOrbitZ = posOrigen.z + Math.sin(anguloAcumulado) * radioCam;
-            const camOrbitY = posOrigen.y + 2.5;
+        // Empezamos a girar al segundo 3 (cuando ya se alejo) hasta el 6.5
+        if (player.camera && segundos > 3 && segundos < 6.5) {
+            // La camara gira MUY LENTO (independiente de las particulas)
+            // Apenas hará media vuelta en 3 segundos para no marear
+            anguloCamara += 0.02; 
 
-            // Actualizamos cada tick para efecto de giro fluido
+            const radioCam = 4.5;
+            const camOrbitX = posOrigen.x + Math.cos(anguloCamara) * radioCam;
+            const camOrbitZ = posOrigen.z + Math.sin(anguloCamara) * radioCam;
+            const camOrbitY = posOrigen.y + 3.0;
+
             try {
                 player.camera.setCamera("minecraft:free", {
                     location: { x: camOrbitX, y: camOrbitY, z: camOrbitZ },
-                    facingLocation: { x: posOrigen.x, y: posOrigen.y + 1.5, z: posOrigen.z } // Mirar al pecho
+                    facingLocation: { x: posOrigen.x, y: posOrigen.y + 1.0, z: posOrigen.z }
                 });
             } catch(e) {}
         }
 
-
         // =================================================
-        // EVENTOS TEMPORALES
+        // EVENTOS TEMPORALES (TIMELINE)
         // =================================================
-        if (ticks === 80) { // 4s
-            player.addEffect("darkness", 100, { amplifier: 255, showParticles: false });
+        
+        // T=4s: Sonido ambiente (Darkness opcional, pero el fade es lo importante)
+        if (ticks === 80) { 
             player.playSound("mob.warden.nearby_close");
         }
 
-        // T=7s: EL TELETRANSPORTE Y ESCENA 3
-        if (ticks === 140) { 
+        // T=6.5s (130 ticks): FADE TO BLACK (Pantalla Negra)
+        if (ticks === 130) {
+            if (player.camera) {
+                try {
+                    // Fundido a negro: Entra en 0.5s, se queda 1s, sale en 1s
+                    player.camera.fade({
+                        fadeColor: { red: 0, green: 0, blue: 0 },
+                        fadeTime: { fadeInTime: 0.5, holdTime: 1.0, fadeOutTime: 1.5 }
+                    });
+                } catch(e) {}
+            }
+        }
+
+        // T=7s (140 ticks): TELETRANSPORTE
+        if (ticks === 140) {
             try {
                 const dimDestino = world.getDimension(destino.dim);
                 player.teleport({ x: destino.x, y: destino.y, z: destino.z }, { dimension: dimDestino });
                 dimActual = dimDestino; 
-                player.sendMessage(`§aHas llegado a ${destino.name}.`);
+                
+                // SONIDO DE LLEGADA
                 player.playSound("portal.travel");
+                player.sendMessage(`§aHas llegado a ${destino.name}.`);
 
-                // --- ESCENA 3: EL IMPACTO (ZOOM IN) ---
-                if (player.camera) {
-                    // Paso 1: Colocar camara frente a la cara (SNAP instantaneo)
-                    // Calculamos vector frente
-                    const newYawRad = (player.getRotation().y + 90) * (Math.PI / 180);
-                    const frontDist = 2.5; // Empezamos a 2.5 bloques de distancia
-                    
-                    const startX = destino.x + Math.cos(newYawRad) * frontDist;
-                    const startZ = destino.z + Math.sin(newYawRad) * frontDist;
-                    const eyeY = destino.y + 1.6;
-
-                    // Posicion Final (Dentro de la cabeza / Ojos)
-                    const endX = destino.x; // +0 distancia
-                    const endZ = destino.z;
-
-                    // Ejecutamos la transicion: De Frente -> A los Ojos
-                    // Truco: Ponemos la camara en Start y le decimos que vaya a End
-                    player.camera.setCamera("minecraft:free", {
-                        location: { x: startX, y: eyeY, z: startZ },
-                        facingLocation: { x: endX, y: eyeY, z: endZ } // Mirar a los ojos
-                    });
-
-                    // En el siguiente tick, iniciamos el viaje hacia adentro (Zoom)
-                    system.runTimeout(() => {
-                        try {
-                            player.camera.setCamera("minecraft:free", {
-                                location: { x: endX, y: eyeY, z: endZ }, // Destino: Ojos
-                                facingLocation: { x: endX + Math.cos(newYawRad)*5, y: eyeY, z: endZ + Math.sin(newYawRad)*5 }, // Mirar al horizonte
-                                easeOptions: {
-                                    time: 1.8, // 1.8 segundos para entrar en tu cuerpo
-                                    easeType: "Spring" // Efecto rebote suave al entrar
-                                }
-                            });
-                        } catch(e){}
-                    }, 1);
-                }
+                // 🛑 BORRAMOS LA CAMARA AQUI
+                // Como la pantalla esta negra, el jugador no ve el cambio brusco.
+                // Cuando el negro se quite, ya estará en 1ra persona viendo las particulas.
+                if (player.camera) player.camera.clear();
 
             } catch (e) {
                 cancelarViaje(player, runner, "Error: El destino no es valido."); return;
             }
         }
 
-        if (ticks === 180) { // 9s
-            player.removeEffect("darkness"); 
+        // T=9s: Sonido final "Listo"
+        if (ticks === 180) {
             player.playSound("random.levelup");
-            
-            // DEVUELVE LA CAMARA AL JUGADOR
-            if (player.camera) player.camera.clear();
         }
 
-        if (ticks >= 240) { // 12s
+        // T=12s: Fin
+        if (ticks >= 240) {
             system.clearRun(runner);
         }
 
         // =================================================
-        // PARTICULAS (SIN CAMBIOS)
+        // PARTICULAS (SIGUEN GIRANDO RAPIDO)
         // =================================================
         let velocidadGiro = 0;
-        if (segundos < 7) velocidadGiro = 0.1 + Math.pow(segundos / 7, 2) * 0.5; 
-        else {
+        
+        if (segundos < 7) {
+            velocidadGiro = 0.1 + Math.pow(segundos / 7, 2) * 0.5; 
+        } else {
             const progresoFinal = (segundos - 7) / 5; 
             velocidadGiro = 0.6 * (1 - Math.pow(progresoFinal, 0.5)); 
         }
 
-        anguloAcumulado += velocidadGiro;
+        anguloParticulas += velocidadGiro;
 
         if (velocidadGiro > 0.01) {
             const radio = 2.5; 
-            const cosA = Math.cos(anguloAcumulado);
-            const sinA = Math.sin(anguloAcumulado);
+            const cosA = Math.cos(anguloParticulas);
+            const sinA = Math.sin(anguloParticulas);
             const activarCuatro = segundos > 4.5;
 
             for (const alturaFija of alturasPilar) {
                 const py = player.location.y + alturaFija;
                 try {
+                    // Pilares Particulas
                     dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
                         { x: player.location.x + (cosA * radio), y: py, z: player.location.z + (sinA * radio) });
                     dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
@@ -806,8 +793,13 @@ function iniciarSecuenciaViaje(player, destino) {
 function cancelarViaje(player, runner, motivo) {
     system.clearRun(runner);
     try {
-        player.removeEffect("darkness");
-        if (player.camera) player.camera.clear(); // Importante: Devolver camara si falla
+        if (player.camera) {
+            player.camera.fade({ // Quitamos lo negro rapido si se cancela
+                fadeColor: { red: 0, green: 0, blue: 0 },
+                fadeTime: { fadeInTime: 0.1, holdTime: 0, fadeOutTime: 0.5 }
+            });
+            player.camera.clear();
+        }
     } catch(e) {}
     player.sendMessage(`§c[!] ${motivo}`);
     player.playSound("mob.villager.no");
