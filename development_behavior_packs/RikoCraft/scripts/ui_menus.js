@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// SECUENCIA DE VIAJE CINEMATOGRAFICA (VERSION FINAL - GIRO UNICO)
+// SECUENCIA DE VIAJE CINEMATOGRAFICA (VERSION FINAL - PILARES DE ENERGIA)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -598,11 +598,13 @@ function iniciarSecuenciaViaje(player, destino) {
     player.setDynamicProperty("warp_cd", ahora + 30000); 
 
     // 3. Preparar variables seguras
-    let posOrigen, hpComp, vidaAnterior;
+    let posOrigen, hpComp, vidaAnterior, yawRadianes;
     try {
         posOrigen = player.location;
         hpComp = player.getComponent("health");
         vidaAnterior = hpComp.currentValue;
+        // Obtenemos la rotacion Y (yaw) en grados y la convertimos a radianes
+        yawRadianes = (player.getRotation().y + 90) * (Math.PI / 180);
     } catch (e) { return; }
     
     // 4. AVISO
@@ -612,47 +614,47 @@ function iniciarSecuenciaViaje(player, destino) {
     // Variables de control
     let dimActual = player.dimension;
     let ticks = 0;
-    let anguloAcumulado = 0; // <--- NUEVO: Guardamos el angulo aqui para que nunca retroceda
+    
+    // --- NUEVO: CONFIGURACION VISUAL ---
+    // Iniciamos el angulo basandonos en hacia donde mira el jugador.
+    // Restamos PI/2 (90 grados) para que empiecen a los costados (izq/der).
+    let anguloAcumulado = yawRadianes - (Math.PI / 2);
+    
+    // Definimos las alturas fijas para crear el "pilar" (desde los pies hacia arriba)
+    const alturasPilar = [0.3, 0.8, 1.3, 1.8];
 
     // --- LOOP PRINCIPAL ---
     const runner = system.runInterval(() => {
-        // Seguridad anti-crash
         try { const _check = player.name; } catch (e) {
-            system.clearRun(runner);
-            return;
+            system.clearRun(runner); return;
         }
 
         ticks++;
         const segundos = ticks / 20;
 
         // =================================================
-        // FASE 1: VIGILANCIA (0 a 7s)
+        // FASE 1: VIGILANCIA (0 a 7s) - SIN CAMBIOS
         // =================================================
         if (segundos < 7) {
             const dx = Math.abs(player.location.x - posOrigen.x);
             const dz = Math.abs(player.location.z - posOrigen.z);
-            
             if (dx > 0.5 || dz > 0.5) {
-                cancelarViaje(player, runner, "Te moviste! Concentracion rota.");
-                return;
+                cancelarViaje(player, runner, "Te moviste! Concentracion rota."); return;
             }
-
             const vidaActual = hpComp.currentValue;
             if (vidaActual < vidaAnterior) {
-                cancelarViaje(player, runner, "Te han herido! Viaje interrumpido.");
-                return;
+                cancelarViaje(player, runner, "Te han herido! Viaje interrumpido."); return;
             }
             vidaAnterior = vidaActual; 
         }
 
         // =================================================
-        // EVENTOS TEMPORALES
+        // EVENTOS TEMPORALES - SIN CAMBIOS
         // =================================================
         if (ticks === 80) { // 4s
             player.addEffect("darkness", 100, { amplifier: 255, showParticles: false });
             player.playSound("mob.warden.nearby_close");
         }
-
         if (ticks === 140) { // 7s (TP)
             try {
                 const dimDestino = world.getDimension(destino.dim);
@@ -661,59 +663,49 @@ function iniciarSecuenciaViaje(player, destino) {
                 player.sendMessage(`§aHas llegado a ${destino.name}.`);
                 player.playSound("portal.travel");
             } catch (e) {
-                cancelarViaje(player, runner, "Error: El destino no es valido.");
-                return;
+                cancelarViaje(player, runner, "Error: El destino no es valido."); return;
             }
         }
-
         if (ticks === 180) { // 9s
-            player.removeEffect("darkness");
-            player.playSound("random.levelup");
+            player.removeEffect("darkness"); player.playSound("random.levelup");
         }
-
         if (ticks >= 240) { // 12s
             system.clearRun(runner);
         }
 
         // =================================================
-        // PARTICULAS (LOGICA DE GIRO CORREGIDA)
+        // PARTICULAS (NUEVA LOGICA DE PILARES)
         // =================================================
-        
-        // 1. Calcular velocidad de giro (Rad/tick)
         let velocidadGiro = 0;
-        
-        if (segundos < 7) {
-            // Acelera suavemente
-            velocidadGiro = 0.2 + (segundos / 7) * 0.4; 
-        } else {
-            // Desacelera hasta frenar
+        if (segundos < 7) velocidadGiro = 0.2 + (segundos / 7) * 0.4; 
+        else {
             const progresoFinal = (segundos - 7) / 5; 
             velocidadGiro = 0.6 * (1 - progresoFinal);
         }
 
-        // 2. Acumular angulo (Siempre suma -> Siempre gira horario)
         anguloAcumulado += velocidadGiro;
 
-        // Solo dibujamos si se mueve un poco
         if (velocidadGiro > 0.01) {
             const radio = 1.5;
+            // Calculamos la posicion base X/Z según el angulo actual
+            const baseX = Math.cos(anguloAcumulado) * radio;
+            const baseZ = Math.sin(anguloAcumulado) * radio;
             
-            // Usamos el angulo acumulado
-            const px = Math.cos(anguloAcumulado) * radio;
-            const pz = Math.sin(anguloAcumulado) * radio;
-            const py = 1 + Math.sin(ticks * 0.15) * 0.5; // Flotar suave
+            // Bucle para crear la pila vertical
+            for (const alturaFija of alturasPilar) {
+                const py = player.location.y + alturaFija; // Altura fija sin rebote
 
-            try {
-                // Particula 1
-                dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
-                    { x: player.location.x + px, y: player.location.y + py, z: player.location.z + pz });
-                
-                // Particula 2 (Espejo / Lado opuesto)
-                // Simplemente restamos px y pz para ponerla al otro lado
-                dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
-                    { x: player.location.x - px, y: player.location.y + py, z: player.location.z - pz });
+                try {
+                    // Pilar 1 (Lado A)
+                    dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
+                        { x: player.location.x + baseX, y: py, z: player.location.z + baseZ });
+                    
+                    // Pilar 2 (Lado B - Espejo opuesto)
+                    dimActual.spawnParticle("minecraft:obsidian_glow_dust_particle", 
+                        { x: player.location.x - baseX, y: py, z: player.location.z - baseZ });
 
-            } catch(e) {}
+                } catch(e) {}
+            }
         }
 
     }, 1);
