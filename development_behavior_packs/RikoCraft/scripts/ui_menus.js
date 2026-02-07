@@ -576,6 +576,182 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
+// 🔮 SECUENCIA DE VIAJE CINEMATOGRÁFICA (NUEVO SISTEMA)
+// =============================================================================
+// Esta función controla toda la magia del viaje:
+// 1. Aplica lentitud extrema (Ancla) para que no se muevan.
+// 2. Vigila si reciben daño o se mueven ilegalmente.
+// 3. Genera partículas y sonidos antes y después del TP.
+function iniciarSecuenciaViaje(player, destino) {
+    // 1. Verificar Cooldown (30 Segundos)
+    // Si quieres que los ADMINS ignoren el tiempo, descomenta la siguiente linea:
+    // if (player.hasTag(CONFIG.TAG_ADMIN)) return ejecutarTP(player, destino);
+
+    const cooldown = player.getDynamicProperty("warp_cd") || 0;
+    const ahora = Date.now();
+    
+    if (ahora < cooldown) {
+        const segundosFaltan = Math.ceil((cooldown - ahora) / 1000);
+        player.sendMessage(`§c⏳ Tu energía mágica se está recuperando. Espera ${segundosFaltan}s.`);
+        player.playSound("random.fizz");
+        return;
+    }
+
+    // 2. Establecer castigo (Cooldown se consume al iniciar, no al llegar)
+    player.setDynamicProperty("warp_cd", ahora + 30000); // 30 segundos (30000 ms)
+
+    // 3. Preparar variables de Control
+    const posOrigen = player.location;
+    const hpComp = player.getComponent("health");
+    let vidaAnterior = hpComp.currentValue;
+    
+    // 4. Aplicar "Ancla" (No moverse)
+    // Slowness 255 hace imposible caminar. Duración: 9 segundos (180 ticks)
+    // ShowParticles: false para que no salgan las espirales grises feas de la poción
+    player.addEffect("slowness", 180, { amplifier: 255, showParticles: false });
+    
+    player.sendMessage(`§e🔮 Iniciando viaje a §f${destino.name}§e... No te muevas (7s).`);
+    player.playSound("beacon.activate"); // Sonido místico de inicio
+
+    // Variable para saber en qué dimensión dibujar partículas (Origen vs Destino)
+    let dimActual = player.dimension;
+    let ticks = 0;
+
+    // --- LOOP PRINCIPAL (EJECUTADO CADA TICK) ---
+    const runner = system.runInterval(() => {
+        // Seguridad: Si se desconecta, paramos todo
+        if (!player.isValid()) {
+            system.clearRun(runner);
+            return;
+        }
+
+        ticks++;
+        const segundos = ticks / 20; // 20 ticks = 1 segundo
+
+        // =================================================
+        // FASE 1: VIGILANCIA (Segundos 0 a 7)
+        // =================================================
+        if (segundos < 7) {
+            // A. Detector de Movimiento (Tolerancia 0.5 bloques)
+            const dx = Math.abs(player.location.x - posOrigen.x);
+            const dz = Math.abs(player.location.z - posOrigen.z);
+            
+            // Si te mueves más de medio bloque (ej. empujón o salto)
+            if (dx > 0.5 || dz > 0.5) {
+                cancelarViaje(player, runner, "¡Te moviste! Concentración rota.");
+                return;
+            }
+
+            // B. Detector de Daño (Solo si la vida BAJA)
+            // Si te curas (comes), la vida sube y no pasa nada. Solo si baja.
+            const vidaActual = hpComp.currentValue;
+            if (vidaActual < vidaAnterior) {
+                cancelarViaje(player, runner, "¡Te han herido! Viaje interrumpido.");
+                return;
+            }
+            vidaAnterior = vidaActual; // Actualizamos por si se curó (eso sí se vale)
+        }
+
+        // =================================================
+        // EVENTOS TEMPORALES (TIMELINE)
+        // =================================================
+
+        // T=4s: Efecto Darkness (Preparando salto visualmente)
+        if (ticks === 80) { // 4 segundos
+            player.addEffect("darkness", 100, { amplifier: 255, showParticles: false }); // Dura 5s
+            player.playSound("mob.warden.nearby_close"); // Sonido de miedo/tensión
+        }
+
+        // T=7s: EL TELETRANSPORTE
+        if (ticks === 140) { // 7 segundos
+            try {
+                // Obtenemos la dimension destino (overworld, nether, the_end)
+                const dimDestino = world.getDimension(destino.dim);
+                
+                // Hacemos el TP
+                player.teleport({ x: destino.x, y: destino.y, z: destino.z }, { dimension: dimDestino });
+                
+                // Actualizamos referencia para partículas (ahora deben salir en el destino)
+                dimActual = dimDestino; 
+                
+                // Mensajes y Sonidos de Llegada
+                player.sendMessage(`§a✨ Has llegado a ${destino.name}.`);
+                player.playSound("portal.travel"); // Sonido clásico de portal
+            } catch (e) {
+                cancelarViaje(player, runner, "Error: El destino no es válido o la dimensión no cargó.");
+                return;
+            }
+        }
+
+        // T=9s: Recuperación (Quitar Ancla y Ceguera)
+        // 2 segundos después del TP (7 + 2 = 9)
+        if (ticks === 180) {
+            player.removeEffect("slowness");
+            player.removeEffect("darkness");
+            player.playSound("random.levelup"); // Sonido de "listo"
+        }
+
+        // T=12s: Fin del Script (Apagar partículas)
+        if (ticks >= 240) {
+            system.clearRun(runner);
+        }
+
+        // =================================================
+        // SISTEMA DE PARTÍCULAS (ESPIRAL)
+        // =================================================
+        // Cálculo de velocidad: 
+        // 0-7s: Acelera (0.5 a 3.0)
+        // 7-12s: Desacelera (3.0 a 0)
+        let velocidad = 0;
+        
+        if (segundos < 7) {
+            velocidad = 0.5 + (segundos / 7) * 2.5; // Acelera
+        } else {
+            const progresoFinal = (segundos - 7) / 5; 
+            velocidad = 3.0 * (1 - progresoFinal); // Frena
+        }
+
+        if (velocidad > 0.1) {
+            const radio = 1.5; // Radio del círculo alrededor del jugador
+            const angulo = ticks * velocidad; // La velocidad define qué tan rápido cambia el ángulo
+            
+            // Matemáticas de la espiral
+            const px = Math.cos(angulo) * radio;
+            const pz = Math.sin(angulo) * radio;
+            
+            // El +1 sube la partícula al pecho/cabeza
+            // El sin(ticks * 0.1) hace que suban y bajen suavemente (Efecto flotante)
+            const py = 1 + Math.sin(ticks * 0.1) * 0.5; 
+
+            // Dibujamos partículas
+            try {
+                // Partícula Principal: Aliento de Dragón (Morada)
+                dimActual.spawnParticle("minecraft:dragon_breath_trail", 
+                    { x: player.location.x + px, y: player.location.y + py, z: player.location.z + pz });
+                
+                // Partícula Secundaria: Espejo (Opcional, para más volumen, en el lado opuesto)
+                dimActual.spawnParticle("minecraft:dragon_breath_trail", 
+                    { x: player.location.x - px, y: player.location.y + py, z: player.location.z - pz });
+            } catch(e) {
+                // Ignoramos errores si el chunk no está cargado aun
+            }
+        }
+
+    }, 1); // Ejecutar CADA tick para fluidez máxima
+}
+
+// Función auxiliar para cancelar y limpiar si algo sale mal o el jugador falla
+function cancelarViaje(player, runner, motivo) {
+    system.clearRun(runner);
+    try {
+        player.removeEffect("slowness");
+        player.removeEffect("darkness");
+    } catch(e) {}
+    player.sendMessage(`§c❌ ${motivo}`);
+    player.playSound("mob.villager.no");
+}
+
+// =============================================================================
 // 👑 PANEL DE ADMINISTRADOR (NAVEGACIÓN FLUIDA)
 // =============================================================================
 
