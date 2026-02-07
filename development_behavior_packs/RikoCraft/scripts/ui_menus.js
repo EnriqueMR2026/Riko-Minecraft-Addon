@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// SECUENCIA DE VIAJE (VERSION FINAL - GIRO RAPIDO Y COMPLETO)
+// SECUENCIA DE VIAJE (VERSION FINAL - CALIBRADA 360° Y ZOOM AJUSTADO)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -620,13 +620,12 @@ function iniciarSecuenciaViaje(player, destino) {
     // Particulas
     let anguloParticulas = yawRad - (Math.PI / 2);
     
-    // Camara (Empieza al FRENTE)
+    // Camara
     const anguloInicioCamara = yawRad; 
     
-    // --- CAMBIO: AUMENTO DE VELOCIDAD ---
-    // 9.0 radianes son aprox 1.5 vueltas completas.
-    // Esto asegura que gire rapido antes de oscurecerse.
-    const GIRO_TOTAL = 9.0; 
+    // CAMBIO: GIRO DE 360 GRADOS EXACTOS (2 * PI)
+    // 6.3 radianes es una vuelta completa perfecta
+    const GIRO_TOTAL = 6.3; 
 
     const alturasPilar = [0.2, 0.7, 1.2, 1.7, 2.2, 2.7, 3.2, 3.7];
 
@@ -657,17 +656,18 @@ function iniciarSecuenciaViaje(player, destino) {
         }
 
         // =================================================
-        // MOVIMIENTO DE CAMARA (ESPIRAL RAPIDA)
+        // MOVIMIENTO DE CAMARA (ESPIRAL FLUIDA)
         // =================================================
         if (player.camera && segundos < 6.5) {
             try {
-                // 1. Distancia: Se aleja un poco más rapido (hasta 5.5 bloques)
-                const radioActual = 2.0 + (3.5 * Math.sin(progreso * Math.PI / 2));
+                // 1. Distancia: Ajustada (20% menos lejos)
+                // Empieza en 2.0 y se aleja 2.4 extra -> Maximo 4.4 bloques
+                const radioActual = 2.0 + (2.4 * Math.sin(progreso * Math.PI / 2));
                 
-                // 2. Altura: Sube hasta 5 bloques para ver bien desde arriba
-                const alturaActual = 1.6 + (3.4 * progreso);
+                // 2. Altura: Sube hasta 4.5 bloques (igual que antes, se veia bien)
+                const alturaActual = 1.6 + (2.9 * progreso);
                 
-                // 3. Angulo: Gira 9 radianes en total (Velocidad Aumentada)
+                // 3. Angulo: Gira 360 grados exactos
                 const anguloActual = anguloInicioCamara - (progreso * GIRO_TOTAL);
 
                 const camX = posOrigen.x + Math.cos(anguloActual) * radioActual;
