@@ -1,0 +1,14 @@
+# 1. Ignorar TODO por defecto (para no subir tus mundos ni basura)
+*
+
+# 2. Permitir (No ignorar) la estructura de carpetas
+!*/
+!development_behavior_packs/
+!development_resource_packs/
+
+# 3. Permitir TU ADDON ESPECÍFICO (Cambia "RikoCraft" por el nombre real de tu carpeta)
+!development_behavior_packs/RikoCraft/**
+!development_resource_packs/RikoCraft/**
+
+# 4. Permitir este mismo archivo gitignore
+!.gitignore

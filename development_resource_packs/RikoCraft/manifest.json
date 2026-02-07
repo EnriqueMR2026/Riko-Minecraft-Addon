@@ -1,0 +1,17 @@
+{
+    "format_version": 2,
+    "header": {
+        "name": "RikoCraft Recursos",
+        "description": "Texturas y Sonidos para RikoCraft T9 2.0.2",
+        "uuid": "7a342415-3054-471e-9276-59918206296e",
+        "version": [2, 1, 2],
+        "min_engine_version": [1, 21, 0]
+    },
+    "modules": [
+        {
+            "type": "resources",
+            "uuid": "56306560-6d43-4171-8488-84228206296e",
+            "version": [2, 1, 2]
+        }
+    ]
+}
