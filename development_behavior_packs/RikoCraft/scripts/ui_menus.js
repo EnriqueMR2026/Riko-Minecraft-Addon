@@ -580,7 +580,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 }
 
 // =============================================================================
-// SECUENCIA DE VIAJE (VERSION SINCRONIZADA PERFECTA)
+// SECUENCIA DE VIAJE (VERSION ESPIRAL CONTINUA - SIN PAUSAS)
 // =============================================================================
 function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
@@ -614,41 +614,21 @@ function iniciarSecuenciaViaje(player, destino) {
     let dimActual = player.dimension;
     let ticks = 0;
     
-    // --- CONFIGURACION VISUAL UNIFICADA (SIN SALTOS) ---
-    // Altura constante para la camara (Despegue y Orbita)
-    const ALTURA_CAMARA = 3.0; 
-    // Distancia constante (Radio)
-    const RADIO_CAMARA = 4.5; 
-
-    // Angulos
+    // --- CONFIGURACION VISUAL ---
     const yawRad = (rotacionInicial.y + 90) * (Math.PI / 180);
+    
+    // Particulas (Giran Rapido)
     let anguloParticulas = yawRad - (Math.PI / 2);
     
-    // La camara empieza mirando al frente (yawRad)
-    let anguloCamara = yawRad; 
+    // Configuración de la Espiral de Cámara
+    // Empezamos EXACTAMENTE donde mira el jugador (Frente)
+    const anguloInicioCamara = yawRad; 
+    
+    // ¿Cuanto girará en total? (Casi una vuelta completa: 5 radianes ≈ 280 grados)
+    // Si quieres más vueltas, aumenta este numero.
+    const GIRO_TOTAL = 5.0; 
 
     const alturasPilar = [0.2, 0.7, 1.2, 1.7, 2.2, 2.7, 3.2, 3.7];
-
-    // =================================================
-    // ESCENA 1: EL DESPEGUE (HACIA EL FRENTE)
-    // =================================================
-    if (player.camera) {
-        try {
-            // Usamos las constantes UNIFICADAS para calcular el destino del despegue
-            const camX = posOrigen.x + Math.cos(yawRad) * RADIO_CAMARA; 
-            const camZ = posOrigen.z + Math.sin(yawRad) * RADIO_CAMARA;
-            const camY = posOrigen.y + ALTURA_CAMARA; 
-
-            player.camera.setCamera("minecraft:free", {
-                location: { x: camX, y: camY, z: camZ },
-                facingEntity: player,
-                easeOptions: {
-                    time: 3.0, 
-                    easeType: "InOutCubic" 
-                }
-            });
-        } catch(e) {}
-    }
 
     // --- LOOP PRINCIPAL ---
     const runner = system.runInterval(() => {
@@ -658,6 +638,8 @@ function iniciarSecuenciaViaje(player, destino) {
 
         ticks++;
         const segundos = ticks / 20;
+        // Progreso de 0.0 a 1.0 durante los 7 segundos (140 ticks)
+        const progreso = Math.min(ticks / 140, 1.0);
 
         // =================================================
         // VIGILANCIA (0 a 7s)
@@ -676,40 +658,52 @@ function iniciarSecuenciaViaje(player, destino) {
         }
 
         // =================================================
-        // MOVIMIENTO DE CAMARA (ORBITA INVERTIDA)
+        // MOVIMIENTO DE CAMARA (ESPIRAL FLUIDA)
         // =================================================
-        // Inicia al seg 3, justo donde termino el despegue
-        if (player.camera && segundos > 3 && segundos < 6.5) {
-            // CAMBIO: Invertimos el giro (-=)
-            anguloCamara -= 0.02; 
-
-            // Usamos las mismas constantes RADIO_CAMARA y ALTURA_CAMARA
-            // Al empezar, anguloCamara es igual a yawRad, asi que la posicion
-            // es IDENTICA a donde termino el despegue. ¡Cero saltos!
-            const camOrbitX = posOrigen.x + Math.cos(anguloCamara) * RADIO_CAMARA;
-            const camOrbitZ = posOrigen.z + Math.sin(anguloCamara) * RADIO_CAMARA;
-            const camOrbitY = posOrigen.y + ALTURA_CAMARA;
-
+        // Actualizamos la camara CADA TICK para que sea inmediato y suave
+        if (player.camera && segundos < 6.5) {
             try {
+                // CALCULO DINAMICO DE POSICION
+                
+                // 1. Distancia: Empieza cerca (2m) y se aleja hasta (5m)
+                // Usamos una curva suave (ease out) para que no se aleje linealmente aburrido
+                const radioActual = 2.0 + (3.0 * Math.sin(progreso * Math.PI / 2));
+                
+                // 2. Altura: Empieza en los ojos (1.6) y sube hasta (4.5)
+                const alturaActual = 1.6 + (2.9 * progreso);
+                
+                // 3. Angulo: Empieza al frente y gira CONSTANTEMENTE
+                // Restamos para girar hacia la derecha (sentido horario)
+                const anguloActual = anguloInicioCamara - (progreso * GIRO_TOTAL);
+
+                // Convertimos polar a cartesiano
+                const camX = posOrigen.x + Math.cos(anguloActual) * radioActual;
+                const camZ = posOrigen.z + Math.sin(anguloActual) * radioActual;
+                const camY = posOrigen.y + alturaActual;
+
                 player.camera.setCamera("minecraft:free", {
-                    location: { x: camOrbitX, y: camOrbitY, z: camOrbitZ },
-                    facingLocation: { x: posOrigen.x, y: posOrigen.y + 1.0, z: posOrigen.z }
+                    location: { x: camX, y: camY, z: camZ },
+                    facingLocation: { x: posOrigen.x, y: posOrigen.y + 1.2, z: posOrigen.z } // Mira siempre al pecho
                 });
             } catch(e) {}
         }
 
         // =================================================
-        // EVENTOS TEMPORALES
+        // EVENTOS TEMPORALES (SONIDOS Y FADE)
         // =================================================
-        if (ticks === 80) player.playSound("mob.warden.nearby_close");
+        
+        // Efecto sonoro progresivo
+        if (ticks === 1) player.playSound("beacon.ambient"); // Zumbido inicial
+        if (ticks === 60) player.playSound("mob.warden.heartbeat"); // Latido al seg 3
+        if (ticks === 100) player.playSound("mob.warden.nearby_close"); // Climax al seg 5
 
-        // FADE TO BLACK
+        // FADE TO BLACK (Pantalla Negra antes del TP)
         if (ticks === 130) {
             if (player.camera) {
                 try {
                     player.camera.fade({
                         fadeColor: { red: 0, green: 0, blue: 0 },
-                        fadeTime: { fadeInTime: 0.5, holdTime: 1.0, fadeOutTime: 1.5 }
+                        fadeTime: { fadeInTime: 0.5, holdTime: 1.0, fadeOutTime: 1.0 }
                     });
                 } catch(e) {}
             }
@@ -725,6 +719,7 @@ function iniciarSecuenciaViaje(player, destino) {
                 player.playSound("portal.travel");
                 player.sendMessage(`§aHas llegado a ${destino.name}.`);
 
+                // Limpiamos camara durante el negro
                 if (player.camera) player.camera.clear();
 
             } catch (e) {
