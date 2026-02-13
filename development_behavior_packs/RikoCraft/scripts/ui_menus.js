@@ -4,6 +4,7 @@ import { CONFIG } from "./config.js";
 import { menuClanes } from "./ui_clanes.js";
 import { menuTierras } from "./ui_tierras.js";
 import { obtenerZonaActual } from "./ui_zonas.js";
+import { menuTextos } from "./ui_textos.js";
 import { getSaldo, buscarJugador, setSaldo, getWaypoints, addWaypoint, deleteWaypoint, obtenerInventario, VENTAS_PENDIENTES, 
     getDatosMundo, setDatosMundo, setConfigVar, getConfigVar, calcularCostoNivel } from "./utils.js";
 
@@ -83,6 +84,7 @@ export function mostrarMenuPrincipal(player) {
     if (esAdmin) {
         menu.button("§l§7>>  §5Administracion  §7<<", "textures/botones/administracion"); 
         menu.button("§l§7>>  §6Gamemode  §7<<", "textures/items/diamond_pickaxe");
+        menu.button("§l§7>>  §dTextos Flotantes  §7<<", "textures/items/name_tag");
     }
 
     // Usamos la herramienta de insistencia para abrirlo
@@ -109,6 +111,9 @@ export function mostrarMenuPrincipal(player) {
 
             case 5: // Gamemode
                 if (esAdmin) menuGamemode(player); break;
+            
+            case 6: // Textos Flotantes
+                if (esAdmin) menuTextos(player); break;
         }
     });
 }
