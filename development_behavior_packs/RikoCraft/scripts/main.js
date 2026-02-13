@@ -736,9 +736,9 @@ system.runInterval(() => {
         .sort((a, b) => b[1] - a[1]) // Mayor a menor
         .slice(0, 10);
         
-    let textoGlobal = "§l§e ★ TOP MILLONARIOS (GLOBAL) ★ §r\n";
+    let textoGlobal = "§l§e  TOP MILLONARIOS  §r\n";
     if (listaGlobal.length === 0) textoGlobal += "§7No hay jugadores registrados.";
-    else listaGlobal.forEach((j, i) => textoGlobal += `${i === 0 ? "§6[1]" : (i === 1 ? "§7[2]" : (i === 2 ? "§c[3]" : `§8${i + 1}.`))} §b${j[0]} §f- §a$${j[1]}\n`);
+    else listaGlobal.forEach((j, i) => textoGlobal += `${i === 0 ? "§l§g[1]" : (i === 1 ? "§l§f[2]" : (i === 2 ? "§l§6[3]" : `§8${i + 1}.`))} §b${j[0]} §f- §a$${j[1]}\n`);
 
     // B. TOP DINERO ONLINE
     const jugadoresOnline = world.getAllPlayers();
@@ -747,20 +747,23 @@ system.runInterval(() => {
         .sort((a, b) => b.saldo - a.saldo)
         .slice(0, 10);
 
-    let textoOnline = "§l§e ★ TOP MILLONARIOS (ONLINE) ★ §r\n";
+    let textoOnline = "§l§e  TOP MILLONARIOS  §r\n";
     if (listaOnline.length === 0) textoOnline += "§7Nadie conectado.";
-    else listaOnline.forEach((j, i) => textoOnline += `${i === 0 ? "§6[1]" : (i === 1 ? "§7[2]" : (i === 2 ? "§c[3]" : `§8${i + 1}.`))} §b${j.nombre} §f- §a$${j.saldo}\n`);
+    else listaOnline.forEach((j, i) => textoOnline += `${i === 0 ? "§l§g[1]" : (i === 1 ? "§l§f[2]" : (i === 2 ? "§l§6[3]" : `§8${i + 1}.`))} §b${j.nombre} §f- §a$${j.saldo}\n`);
 
     // C. TOP CLANES
-    const clanes = typeof getClanes === "function" ? getClanes() : []; 
+    // FIX: Leemos los clanes directamente de la base de datos para que no marque vacío
+    const clanes = getDatosMundo(CONFIG.DB_CLANES) || []; 
     const listaClanes = clanes
         .sort((a, b) => (b.nivel || 1) - (a.nivel || 1)) 
         .slice(0, 10);
         
-    let textoClanes = "§l§e ★ MEJORES CLANES ★ §r\n";
-    if (listaClanes.length === 0) textoClanes += "§7No hay clanes fundados.";
-    else listaClanes.forEach((c, i) => textoClanes += `${i === 0 ? "§6[1]" : (i === 1 ? "§7[2]" : (i === 2 ? "§c[3]" : `§8${i + 1}.`))} ${c.color}${c.nombre} §f- §dNvl ${c.nivel || 1}\n`);
-
+    let textoClanes = "§l§e  MEJORES CLANES  §r\n";
+    if (listaClanes.length === 0) {
+        textoClanes += "§7No hay clanes fundados.";
+    } else {
+        listaClanes.forEach((c, i) => textoClanes += `${i === 0 ? "§l§g[1]" : (i === 1 ? "§l§f[2]" : (i === 2 ? "§l§6[3]" : `§8${i + 1}.`))} ${c.color}${c.nombre} §f- §dNvl ${c.nivel || 1}\n`);
+    }
 
     // --- 2. BUSCAR ENTIDADES Y ACTUALIZARLAS ---
     const dimensiones = ["overworld", "nether", "the_end"];
@@ -817,6 +820,6 @@ system.runInterval(() => {
             }
         } catch (e) {}
     }
-}, 100);
+}, 200);
 
 //MUNDO

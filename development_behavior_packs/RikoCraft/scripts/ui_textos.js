@@ -141,8 +141,12 @@ function menuListaTextos(player, accion) {
         .title(accion === "editar" ? "Editar Textos" : "Borrar Textos")
         // Mostramos una previsualizacion de la primera linea del texto + Coordenadas
         .dropdown(`Selecciona el texto a ${accion} (Ordenados por cercania):`, listaOrdenada.map(e => {
-            const preview = e.nameTag.split('\n')[0].substring(0, 20); // Solo los primeros 20 caracteres
-            return `[${Math.floor(e.location.x)}, ${Math.floor(e.location.y)}, ${Math.floor(e.location.z)}] - ${preview}...`;
+            // Limpiamos los saltos de línea y códigos de color "§" para que la lista se vea limpia
+            let preview = e.nameTag.replace(/\n/g, ' - ').replace(/§./g, '');
+            preview = preview.substring(0, 22); // Solo los primeros 22 caracteres
+            
+            // ---> NUEVO FORMATO: Nombre primero, Coordenadas después <---
+            return `${preview}... [X:${Math.floor(e.location.x)} Y:${Math.floor(e.location.y)} Z:${Math.floor(e.location.z)}]`;
         }));
 
     form.show(player).then(r => {
