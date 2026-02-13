@@ -822,4 +822,64 @@ system.runInterval(() => {
     }
 }, 200);
 
+// =============================================================================
+// ★ MOTOR DE BÚNKERES (CUBO EXACTO Y VISIÓN NOCTURNA INTELIGENTE)
+// =============================================================================
+system.runInterval(() => {
+    // Obtenemos los clanes directamente (Si importaste getClanes úsalo, si no, usa el caché)
+    const clanes = typeof getClanes === "function" ? getClanes() : (getDatosMundo("db_clanes") || []);
+    if (clanes.length === 0) return;
+
+    for (const player of world.getAllPlayers()) {
+        const clan = clanes.find(c => c.miembros.includes(player.name));
+        if (!clan || !clan.base) continue;
+
+        const pLoc = player.location;
+        const bLoc = clan.base;
+        
+        // Bordes del Cubo de Bedrock del Bunker
+        const minX = bLoc.x - 7;
+        const maxX = bLoc.x + 7;
+        const minY = bLoc.y - 2; 
+        const maxY = bLoc.y + 6; 
+        const minZ = bLoc.z - 7;
+        const maxZ = bLoc.z + 7;
+
+        // Comprobación de Colisión 3D (Si está adentro del cubo)
+        const enBunker = (pLoc.x >= minX && pLoc.x <= maxX && 
+                          pLoc.y >= minY && pLoc.y <= maxY && 
+                          pLoc.z >= minZ && pLoc.z <= maxZ);
+        
+        if (enBunker) {
+            // 1. Está dentro de la base
+            player.addTag("adentro_del_bunker_nv");
+            
+            // Le damos 30 segundos exactos (600 ticks). 
+            // Como este loop corre cada 5 segundos, cuando el efecto llegue a 25s, se volverá a subir a 30s.
+            player.addEffect("night_vision", 600, { amplifier: 0, showParticles: false });
+        } else {
+            // 2. Acaba de salir del cubo
+            if (player.hasTag("adentro_del_bunker_nv")) {
+                player.removeTag("adentro_del_bunker_nv");
+                
+                // MAGIA ANTI-CHOQUE: ¿Su clan ya le estaba dando Visión Nocturna por la tienda?
+                let tieneNvPorClan = false;
+                if (clan.renta_efectos_expira > Date.now() && (clan.efectos_desbloqueados || []).includes("night_vision")) {
+                    try {
+                        // Verificamos si en su interruptor personal no la apagó
+                        const prefsRaw = player.getDynamicProperty("mis_efectos_pref");
+                        const prefs = prefsRaw ? JSON.parse(prefsRaw) : {};
+                        if (prefs["night_vision"] !== false) tieneNvPorClan = true;
+                    } catch(e) {}
+                }
+                
+                // Si NO la tiene rentada por el clan, se la quitamos para que quede a oscuras.
+                if (!tieneNvPorClan) {
+                    player.removeEffect("night_vision");
+                }
+            }
+        }
+    }
+}, 100);
+
 //MUNDO

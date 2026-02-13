@@ -587,7 +587,7 @@ function menuBorrarWaypoint(player, esPublico, lista) {
 // =============================================================================
 // SECUENCIA DE VIAJE (VERSION FINAL - SUELO MAGICO Y ZOOM CERCANO)
 // =============================================================================
-function iniciarSecuenciaViaje(player, destino) {
+export function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
     const cooldown = player.getDynamicProperty("warp_cd") || 0;
     const ahora = Date.now();

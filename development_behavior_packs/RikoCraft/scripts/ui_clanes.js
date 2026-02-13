@@ -2,7 +2,7 @@ import { world, system, BlockPermutation, ItemStack } from "@minecraft/server";
 import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import { CONFIG } from "./config.js";
 import { obtenerTierraJugador } from "./ui_tierras.js";
-import { mostrarMenuPrincipal } from "./ui_menus.js";
+import { mostrarMenuPrincipal, iniciarSecuenciaViaje } from "./ui_menus.js";
 import { obtenerZonaActual } from "./ui_zonas.js";
 import { getSaldo, setSaldo, getDatosMundo, setDatosMundo, obtenerDistancia, getConfigVar, obtenerNombreRango, obtenerKitPorNivel, 
     obtenerConfigEfectos, calcularCostoNivel } from "./utils.js";
@@ -225,11 +225,8 @@ function formCrearClan(player) {
 function menuGestionarClan(player, clan) {
     const esLider = clan.lider === player.name;
     const costoNivel = calcularCostoNivel(clan.nivel);
-    
-    // --- CORRECCION 1: LIMITE GLOBAL DEL ADMIN PANEL ---
     const maxMiembros = getConfigVar("MAX_MIEMBROS_GLOBAL"); 
 
-    // Estado de la Renta de Efectos
     let estadoRenta = "§cInactiva";
     if (clan.renta_efectos_expira > Date.now()) {
         const dias = Math.ceil((clan.renta_efectos_expira - Date.now()) / (1000 * 60 * 60 * 24));
@@ -239,9 +236,28 @@ function menuGestionarClan(player, clan) {
     let tituloClan = `${clan.color}${clan.tag}`;
     if (clan.nivel >= 10) tituloClan = `§6§k||§r §6${clan.tag} §6§k||§r`;
 
-    // DETECTAR BLOQUEO (Solo Minijuego)
     const enMinijuego = player.hasTag("minijuego");
-    // Nota: Ya no bloqueamos por zonaActual para el bunker, el lobby es seguro para viajar.
+    
+    // --- LÓGICA FÍSICA: EL CUBO EXACTO DEL BÚNKER (ALTA PRECISIÓN) ---
+    let enBunker = false;
+    if (clan.base) {
+        const pLoc = player.location;
+        // Calculamos los bordes exactos usando las medidas de 'construirBunker'
+        // clan.base.y es yFondo + 2. El bedrock va desde yFondo hasta yFondo + 8.
+        const minX = clan.base.x - 7;
+        const maxX = clan.base.x + 7;
+        const minY = clan.base.y - 2; 
+        const maxY = clan.base.y + 6; 
+        const minZ = clan.base.z - 7;
+        const maxZ = clan.base.z + 7;
+
+        // Comprobamos si el jugador está estrictamente dentro de la caja de Bedrock
+        if (pLoc.x >= minX && pLoc.x <= maxX &&
+            pLoc.y >= minY && pLoc.y <= maxY &&
+            pLoc.z >= minZ && pLoc.z <= maxZ) {
+            enBunker = true;
+        }
+    }
 
     const form = new ActionFormData()
         .title(`Clan: ${tituloClan}`)
@@ -254,41 +270,31 @@ function menuGestionarClan(player, clan) {
             `§fRenta Efectos: ${estadoRenta}`
         );
 
-    // --- CORRECCION 2: TEXTURAS VALIDAS (ITEMS) ---
-    // Usamos texturas de items vanilla para evitar cuadros morados
-    
-    // 0. Kit (Usamos un cofre o bundle)
     form.button("KIT DIARIO\nReclamar Suministros", "textures/items/minecart_chest"); 
-    
-    // 1. Tienda (Poción)
     form.button("TIENDA DE EFECTOS\nDesbloquear Poderes", "textures/items/potion_bottle_empty"); 
-    
-    // 2. Switch (Redstone)
     form.button("MIS EFECTOS (ON/OFF)\nInterruptor Personal", "textures/items/redstone_dust"); 
-    
-    // 3. Pagar Renta (Esmeralda)
     form.button("PAGAR RENTA EFECTOS\nActivar para todos", "textures/items/emerald"); 
 
-    // 4. Base (Puerta o Ender Pearl) --- LOGICA CORREGIDA ---
-    // Solo bloqueamos visualmente si está jugando. Si está en Lobby, puede viajar.
+    // --- BOTÓN INTELIGENTE ---
     if (enMinijuego) {
         form.button("§cIR A BASE (BUNKER)\n[BLOQUEADO]", "textures/ui/lock");
     } else {
-        form.button("IR A BASE (BUNKER)", "textures/items/ender_pearl"); 
+        if (enBunker) {
+            form.button("SALIR DEL BUNKER", "textures/items/ender_pearl"); 
+        } else {
+            form.button("IR A BASE (BUNKER)", "textures/items/ender_pearl"); 
+        }
     }
     
-    // 5. Depositar (Lingote de Oro)
     form.button("DEPOSITAR DINERO", "textures/items/gold_ingot"); 
 
-    // 6. Líder o Salir
     if (esLider) {
         form.button("GESTION DE LIDER", "textures/items/gold_helmet"); 
     } else {
         form.button("SALIRSE DEL CLAN", "textures/items/door_wood"); 
     }
     
-    // 7. Regresar
-    form.button("Regresar", "textures/ui/cancel"); 
+    form.button("§l§7>>  §4Regresar  §7<<", "textures/botones/regresar"); 
 
     form.show(player).then(r => {
         if (r.canceled || r.selection === 7) return mostrarMenuPrincipal(player); 
@@ -299,9 +305,9 @@ function menuGestionarClan(player, clan) {
             case 2: menuSwitchEfectos(player, clan); break;
             case 3: menuPagarRentaEfectos(player, clan); break;
             case 4: 
-                // Solo chequeamos minijuego. Permitimos viajar desde Zonas Protegidas.
                 if (enMinijuego) return player.sendMessage("§c[!] No puedes ir al bunker mientras juegas.");
-                irABaseClan(player, clan); 
+                if (enBunker) salirDeBaseClan(player);
+                else irABaseClan(player, clan); 
                 break;
             case 5: menuDepositarClan(player, clan); break;
             case 6: esLider ? menuGestionLider(player, clan) : salirDelClan(player, clan); break;
@@ -740,29 +746,87 @@ function menuDisolverClan(player, clan) {
 
 // --- FUNCIONES DE LOGICA RAPIDA ---
 
+// =============================================================================
+// VIAJES AL BUNKER (CON CINEMÁTICA Y RESPALDO ANTI-SOFTLOCK)
+// =============================================================================
 function irABaseClan(player, clan) {
-    // 1. Candado de Minijuego (Tag)
-    if (player.hasTag("minijuego")) {
-        return player.sendMessage("§c[!] No puedes ir al bunker durante un minijuego.");
-    }
-
-    // [ELIMINADO] Candado de Zona Protegida 
-    // Permitimos viajar desde el Lobby o Zonas Admin hacia el Bunker.
-
-    // 2. Verificación de Base
-    if (!clan.base) return player.sendMessage("§cError: Este clan no tiene base registrada.");
+    if (player.hasTag("minijuego")) return player.sendMessage("§c[!] No puedes ir al bunker durante un minijuego.");
+    if (!clan.base) return player.sendMessage("§c[!] Error: Este clan no tiene base registrada.");
     
-    // Guardar posicion anterior (Sistema de Retorno)
     const posActual = player.location;
+    
+    // Solo borramos las coordenadas anteriores JUSTO antes de guardar las nuevas.
+    // Así evitamos que se pierdan a medio viaje.
+    player.getTags().forEach(tag => {
+        if (tag.startsWith("return_x:") || tag.startsWith("return_y:") || tag.startsWith("return_z:")) {
+            player.removeTag(tag);
+        }
+    });
+
+    // Guardamos la posición actual exacta
     player.addTag(`return_x:${Math.floor(posActual.x)}`);
     player.addTag(`return_y:${Math.floor(posActual.y)}`);
     player.addTag(`return_z:${Math.floor(posActual.z)}`);
-    player.addTag("en_bunker");
 
-    // Teleport
-    player.teleport({ x: clan.base.x, y: clan.base.y, z: clan.base.z });
-    player.playSound("mob.shulker.teleport");
-    player.sendMessage("§aTeletransportado al Bunker del Clan.");
+    const destino = {
+        name: `Búnker de ${clan.nombre}`,
+        x: clan.base.x,
+        y: clan.base.y,
+        z: clan.base.z,
+        dim: "minecraft:overworld"
+    };
+    
+    iniciarSecuenciaViaje(player, destino);
+}
+
+function salirDeBaseClan(player) {
+    let rx, ry, rz;
+    
+    // Leemos las coordenadas pero NO LAS BORRAMOS. 
+    // Así, si el cooldown nos bloquea, los datos siguen seguros para el siguiente intento.
+    player.getTags().forEach(tag => {
+        if (tag.startsWith("return_x:")) rx = parseInt(tag.split(":")[1]);
+        if (tag.startsWith("return_y:")) ry = parseInt(tag.split(":")[1]);
+        if (tag.startsWith("return_z:")) rz = parseInt(tag.split(":")[1]);
+    });
+
+    if (rx !== undefined && ry !== undefined && rz !== undefined) {
+        const destino = {
+            name: "Superficie",
+            x: rx,
+            y: ry,
+            z: rz,
+            dim: "minecraft:overworld"
+        };
+        iniciarSecuenciaViaje(player, destino);
+    } else {
+        // --- 🚨 SALIDA DE EMERGENCIA INTELIGENTE (FALLBACK) ---
+        // Si el jugador perdió las coordenadas, buscamos su terreno (casa).
+        const tierra = obtenerTierraJugador(player);
+        
+        if (tierra && tierra.center) {
+            player.sendMessage("§e[!] Coordenadas de origen perdidas. Teletransportando a tu Casa por seguridad...");
+            const destinoCasa = {
+                name: "Tu Casa",
+                x: tierra.center.x,
+                y: tierra.center.y + 1, // Sumamos 1 a 'Y' para asegurar que no aparezca atascado en el piso
+                z: tierra.center.z,
+                dim: "minecraft:overworld" // Asumimos que los terrenos están en el overworld
+            };
+            iniciarSecuenciaViaje(player, destinoCasa);
+        } else {
+            // Último recurso: No tiene coords y resulta que NO tiene casa (quizá la borró)
+            player.sendMessage("§e[!] Coordenadas perdidas y no tienes casa. Salvándote en el Lobby...");
+            const spawnSeguro = {
+                name: "Lobby Seguro",
+                x: 0,   // <--- Coordenada X del Spawn del Realm
+                y: 100, // <--- Coordenada Y del Spawn
+                z: 0,   // <--- Coordenada Z del Spawn
+                dim: "minecraft:overworld"
+            };
+            iniciarSecuenciaViaje(player, spawnSeguro);
+        }
+    }
 }
 
 function menuDepositarClan(player, clan) { // v1.3
