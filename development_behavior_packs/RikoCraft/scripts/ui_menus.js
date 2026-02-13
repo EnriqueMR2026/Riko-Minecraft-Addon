@@ -591,18 +591,25 @@ export function iniciarSecuenciaViaje(player, destino) {
     // 1. Verificar Cooldown
     const cooldown = player.getDynamicProperty("warp_cd") || 0;
     const ahora = Date.now();
+    const esAdmin = player.hasTag(CONFIG.TAG_ADMIN); // <- Verificamos si es DIOS
     
-    if (ahora < cooldown) {
+    // Si no es admin y el tiempo aún no pasa, lo bloqueamos
+    if (ahora < cooldown && !esAdmin) {
         const segundosFaltan = Math.ceil((cooldown - ahora) / 1000);
         player.sendMessage(`§cTu energia magica se esta recuperando. Espera ${segundosFaltan}s.`);
         player.playSound("random.fizz");
         return;
     }
 
-    // 2. Establecer castigo
-    player.setDynamicProperty("warp_cd", ahora + 30000); 
+    // 2. Establecer castigo (SOLO SI NO ES ADMIN)
+    if (!esAdmin) {
+        // Obtenemos el tiempo configurado o usamos el de config.js
+        const cooldownSegundos = getConfigVar("COOLDOWN_VIAJE") ?? CONFIG.COOLDOWN_VIAJE;
+        player.setDynamicProperty("warp_cd", ahora + (cooldownSegundos * 1000)); 
+    }
 
     // 3. Preparar variables seguras
+    // (A partir de aquí dejas el código normal de la cinemática...)
     let posOrigen, hpComp, vidaAnterior, rotacionInicial;
     try {
         posOrigen = player.location;
@@ -943,13 +950,20 @@ function menuConfigServer(player) {
     const cClan = String(getConfigVar("COSTO_CREAR_CLAN"));
     const cRenta = String(getConfigVar("COSTO_RENTA_SEMANAL"));
     const cNivel = String(getConfigVar("COSTO_NIVEL_BASE"));
+    
+    // NUEVOS CAMPOS: Costo de Terreno y Cooldown de Viajes
+    // Usamos ?? para dar un valor por defecto si es la primera vez que se abre
+    const cTierra = String(getConfigVar("COSTO_RECLAMAR_TERRENO") ?? 150); 
+    const cooldownViajes = String(getConfigVar("COOLDOWN_VIAJE") ?? CONFIG.COOLDOWN_VIAJE); 
 
     const form = new ModalFormData()
         .title("Configuración Maestra")
         .textField("Miembros Máximos de un Clan:", max)
         .textField("Costo para Crear un Clan:", cClan)
-        .textField("Renta del Clan Semanal:", cRenta)
-        .textField("Costo Base de Nivel del Clan:", cNivel);
+        .textField("Renta del Clan/Terreno Semanal:", cRenta)
+        .textField("Costo Base de Nivel del Clan:", cNivel)
+        .textField("Costo para Reclamar Terreno Inicial:", cTierra) // Índice 4
+        .textField("Cooldown de Viajes (En segundos):", cooldownViajes); // Índice 5
 
     form.show(player).then(r => {
         if (r.canceled) return menuPanelAdmin(player); // 🔙 SI CANCELA, REGRESA
@@ -958,14 +972,17 @@ function menuConfigServer(player) {
         const v2 = parseInt(r.formValues[1]);
         const v3 = parseInt(r.formValues[2]);
         const v4 = parseInt(r.formValues[3]);
+        const v5 = parseInt(r.formValues[4]); // Nuevo: Terrenos
+        const v6 = parseInt(r.formValues[5]); // Nuevo: Cooldown
 
         if (!isNaN(v1)) setConfigVar("MAX_MIEMBROS_GLOBAL", v1);
         if (!isNaN(v2)) setConfigVar("COSTO_CREAR_CLAN", v2);
         if (!isNaN(v3)) setConfigVar("COSTO_RENTA_SEMANAL", v3);
         if (!isNaN(v4)) setConfigVar("COSTO_NIVEL_BASE", v4);
+        if (!isNaN(v5)) setConfigVar("COSTO_RECLAMAR_TERRENO", v5);
+        if (!isNaN(v6)) setConfigVar("COOLDOWN_VIAJE", v6);
 
         player.sendMessage("§a[!] Configuración actualizada.");
-        //menuPanelAdmin(player); // 🔄 REABRE EL PANEL ADMIN
     });
 }
 

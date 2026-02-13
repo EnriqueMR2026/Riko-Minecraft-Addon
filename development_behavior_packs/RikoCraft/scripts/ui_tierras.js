@@ -129,8 +129,14 @@ function menuReclamarTierra(player) {
     });
 
     const costoSemanal = getConfigVar("COSTO_RENTA_SEMANAL");
-    // Cobramos solo 1 día para empezar, no la semana entera
-    const costoInicial = Math.floor(costoSemanal / 7); 
+    
+    // NUEVO: Leemos el costo inicial desde la base de datos dinámica
+    let costoInicial = getConfigVar("COSTO_RECLAMAR_TERRENO");
+    
+    // Si nunca han guardado la configuración en el admin, usamos por defecto 1/7 de la renta
+    if (costoInicial === undefined) {
+        costoInicial = Math.floor(costoSemanal / 7);
+    }
 
     const form = new ActionFormData()
         .title("Gestión de Vivienda")
