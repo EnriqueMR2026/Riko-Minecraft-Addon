@@ -460,40 +460,41 @@ world.beforeEvents.playerBreakBlock.subscribe((event) => {
     if (player.hasTag(CONFIG.TAG_ADMIN)) return; // Dios rompe todo
 
     // A. REVISIÓN SUPREMA: ¿ESTÁ EN ZONA ADMIN?
-        const zonaAdmin = obtenerZonaActual(player);
-        if (zonaAdmin) {
-            const bloque = event.block.typeId;
-            const flags = zonaAdmin.flags || {}; // Leemos las opciones
+    const zonaAdmin = obtenerZonaActual(player);
+    if (zonaAdmin) {
+        const bloque = event.block.typeId;
+        const flags = zonaAdmin.flags || {}; // Leemos las opciones
 
-            // 1. ¿Es una PUERTA/BOTÓN/PALANCA?
-            const esPuerta = bloque.includes("door") || bloque.includes("button") || bloque.includes("lever") || bloque.includes("pressure_plate") || bloque.includes("gate");
-            
-            if (esPuerta) {
-                // Si la flag 'uso_puertas' es TRUE, dejamos pasar (return)
-                // Si es FALSE, bloqueamos.
-                if (flags.uso_puertas === true) return; 
-            }
-
-            // 2. ¿Es un COFRE/CONTENEDOR?
-            const esCofre = bloque.includes("chest") || bloque.includes("shulker") || bloque.includes("barrel") || bloque.includes("hopper") || bloque.includes("dropper") || bloque.includes("dispenser");
-
-            if (esCofre) {
-                // Si la flag 'abrir_cofres' es TRUE, dejamos pasar
-                if (flags.abrir_cofres === true) return;
-            }
-
-            // Si llegamos aquí, es que NO estaba permitido interactuar con ese bloque.
-            event.cancel = true;
-            system.run(() => player.onScreenDisplay.setActionBar(`§cProtegido: ${zonaAdmin.nombre}`));
-            return; 
+        // 1. ¿Es una PUERTA/BOTÓN/PALANCA?
+        const esPuerta = bloque.includes("door") || bloque.includes("button") || bloque.includes("lever") || bloque.includes("pressure_plate") || bloque.includes("gate");
+        
+        if (esPuerta) {
+            // Si la flag 'uso_puertas' es TRUE, dejamos pasar (return)
+            // Si es FALSE, bloqueamos.
+            if (flags.uso_puertas === true) return; 
         }
+
+        // 2. ¿Es un COFRE/CONTENEDOR?
+        const esCofre = bloque.includes("chest") || bloque.includes("shulker") || bloque.includes("barrel") || bloque.includes("hopper") || bloque.includes("dropper") || bloque.includes("dispenser");
+
+        if (esCofre) {
+            // Si la flag 'abrir_cofres' es TRUE, dejamos pasar
+            if (flags.abrir_cofres === true) return;
+        }
+
+        // Si llegamos aquí, es que NO estaba permitido interactuar con ese bloque.
+        event.cancel = true;
+        system.run(() => player.onScreenDisplay.setActionBar(`§cProtegido: ${zonaAdmin.nombre}`));
+        return; 
+    }
 
     // B. REVISIÓN SECUNDARIA: ¿ES PROPIEDAD DE OTRO JUGADOR?
     const x = Math.floor(event.block.location.x);
+    const y = Math.floor(event.block.location.y); // <--- NUEVO: Obtenemos la Y
     const z = Math.floor(event.block.location.z);
     
     // Importamos puedeInteractuar de ui_tierras.js
-    if (!puedeInteractuar(player, x, z)) {
+    if (!puedeInteractuar(player, x, z, y)) { // <--- NUEVO: Enviamos la Y a la función
         event.cancel = true;
         system.run(() => player.onScreenDisplay.setActionBar("§cPropiedad Privada"));
     }
@@ -520,9 +521,11 @@ if (eventoInteraccion) {
 
         // B. REVISIÓN SECUNDARIA: ¿ES PROPIEDAD DE OTRO JUGADOR? (Sistema Tierras)
         const x = Math.floor(event.block.location.x);
+        const y = Math.floor(event.block.location.y); // <--- NUEVO: Obtenemos la Y
         const z = Math.floor(event.block.location.z);
 
-        if (!puedeInteractuar(player, x, z)) {
+        // Enviamos la X, Z y la nueva Y a nuestra función maestra
+        if (!puedeInteractuar(player, x, z, y)) { 
             event.cancel = true;
             system.run(() => player.onScreenDisplay.setActionBar("§cPropiedad Privada"));
         }

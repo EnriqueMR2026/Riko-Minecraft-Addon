@@ -55,7 +55,7 @@ export function obtenerTierraEnPos(x, z) {
 
 // Función Maestra: ¿Puede este jugador interactuar aquí?
 // Se usará en main.js para bloquear romper/poner bloques
-export function puedeInteractuar(player, x, z) {
+export function puedeInteractuar(player, x, z, y) { // <--- CAMBIO: Agregamos 'y'
     // 1. Si es Admin (DIOS), hace lo que quiera
     if (player.hasTag(CONFIG.TAG_ADMIN)) return true;
 
@@ -70,10 +70,35 @@ export function puedeInteractuar(player, x, z) {
     // 4. Si está en la whitelist, se puede
     if (tierra.whitelist.includes(player.name)) return true;
 
+    // --- NUEVA LÓGICA: PASE VIP DE BÚNKER PARA EL CLAN (INTERACCIÓN) ---
+    // Si llegó hasta aquí, significa que NO es dueño ni invitado.
+    // Verificamos si al menos tienen el mismo clan y si el bloque está en la profundidad correcta.
+    if (y !== undefined) { // Nos aseguramos de que 'y' se esté enviando desde main.js
+        const miClan = getClanDeJugador(player.name);
+        const dueñoClan = getClanDeJugador(tierra.owner);
+
+        // ¿Tienen el mismo clan?
+        if (miClan && dueñoClan && miClan.id === dueñoClan.id) {
+            
+            const cx = tierra.center.x;
+            const cz = tierra.center.z;
+            const distX = Math.abs(x - cx);
+            const distZ = Math.abs(z - cz);
+
+            const RADIO_BUNKER = 7; 
+            const Y_TECHO_BUNKER = -52; 
+            
+            // Si el bloque interactuado está dentro de la caja de bedrock del búnker, concedemos permiso
+            if (y <= Y_TECHO_BUNKER && distX <= RADIO_BUNKER && distZ <= RADIO_BUNKER) {
+                return true; 
+            }
+        }
+    }
+    // -------------------------------------------------------------------
+
     // ❌ Bloqueado
     return false;
 }
-
 // =============================================================================
 // 🖥️ MENÚS DE INTERFAZ (UI)
 // =============================================================================
@@ -515,7 +540,7 @@ export function iniciarVigilancia() {
             for (const tierra of tierras) {
                 const esDueño = tierra.owner === player.name;
                 const esInvitado = tierra.whitelist.includes(player.name);
-                const esAliado = esDueño || esInvitado;
+                let esAliado = esDueño || esInvitado; // Usamos 'let' para poder modificarlo
 
                 // DATOS DE LA TIERRA
                 const cx = tierra.center.x;
@@ -524,6 +549,27 @@ export function iniciarVigilancia() {
                 
                 const distX = Math.abs(px - cx);
                 const distZ = Math.abs(pz - cz);
+
+                // --- NUEVA LÓGICA: PASE VIP DE BÚNKER PARA EL CLAN ---
+                if (!esAliado) {
+                    // Importamos el clan del jugador actual y del dueño de la tierra
+                    const miClan = getClanDeJugador(player.name);
+                    const dueñoClan = getClanDeJugador(tierra.owner);
+
+                    // ¿Ambos tienen clan y es exactamente el mismo?
+                    if (miClan && dueñoClan && miClan.id === dueñoClan.id) {
+                        
+                        // CONFIGURACIÓN EXACTA DEL BÚNKER (Basado en ui_clanes.js)
+                        const RADIO_BUNKER = 7; // El cubo de bedrock va de -7 a +7
+                        const Y_TECHO_BUNKER = -52; // El techo de bedrock está en yFondo(-60) + 8 = -52
+                        
+                        // Si el jugador está por debajo del techo del búnker Y dentro del cubo de 15x15...
+                        if (py <= Y_TECHO_BUNKER && distX <= RADIO_BUNKER && distZ <= RADIO_BUNKER) {
+                            esAliado = true; // Inmunidad temporal concedida, ¡es compa del clan!
+                        }
+                    }
+                }
+                // -----------------------------------------------------
 
                 // --- A. CAMPO DE FUERZA (EMPUJE) ---
                 // Solo empujamos si:
