@@ -55,7 +55,7 @@ export function obtenerTierraEnPos(x, z) {
 
 // Función Maestra: ¿Puede este jugador interactuar aquí?
 // Se usará en main.js para bloquear romper/poner bloques
-export function puedeInteractuar(player, x, z, y) { // <--- CAMBIO: Agregamos 'y'
+export function puedeInteractuar(player, x, z, y) { 
     // 1. Si es Admin (DIOS), hace lo que quiera
     if (player.hasTag(CONFIG.TAG_ADMIN)) return true;
 
@@ -63,6 +63,9 @@ export function puedeInteractuar(player, x, z, y) { // <--- CAMBIO: Agregamos 'y
 
     // 2. Si es tierra de nadie, se puede (o puedes bloquearlo si quieres que sea solo wilderness)
     if (!tierra) return true;
+
+    // ---> NUEVA LÓGICA DE RENTA: Si está vencida, es territorio público temporalmente <---
+    if (Date.now() > tierra.expiracion) return true;
 
     // 3. Si es el dueño, se puede
     if (tierra.owner === player.name) return true;
@@ -169,18 +172,28 @@ function crearTierra(player, costo) {
         z: Math.floor(player.location.z)
     };
 
+    // Generamos un ID único desde aquí para usarlo tanto en el guardado como en el texto flotante
+    const idTierra = Date.now().toString();
+
     // Crear bloque central (Obsiniana Llorosa) para marcar el punto exacto
     // Usamos try/catch por si intentas reclamar en el vacío o bedrock
     try {
-        const bloqueSuelo = player.dimension.getBlock({ x: centro.x, y: centro.y - 1, z: centro.z });
+        const dim = player.dimension;
+        const bloqueSuelo = dim.getBlock({ x: centro.x, y: centro.y - 1, z: centro.z });
         if (bloqueSuelo) bloqueSuelo.setPermutation(BlockPermutation.resolve("minecraft:crying_obsidian"));
+        
+        // ---> NUEVO: TEXTO FLOTANTE DE LA CASA <---
+        // Le sumamos 0.5 a X y Z para que quede centrado en el bloque. (y+1.8 es la altura de los ojos)
+        const entity = dim.spawnEntity("rikocraft:texto_flotante", { x: centro.x + 0.5, y: centro.y + 0.8, z: centro.z + 0.5 });
+        entity.nameTag = `§eTerreno de:\n§b${player.name}`;
+        entity.addTag(`tierra_${idTierra}`); // Etiqueta para poder identificarlo y borrarlo si abandona el terreno
     } catch (e) {}
 
     // Calcular expiración (7 días exactos desde hoy)
     const unaSemana = 1000 * 60 * 60 * 24 * 7;
     
     const nuevaTierra = {
-        id: Date.now().toString(),
+        id: idTierra,
         owner: player.name,
         center: centro,
         radio: 25, // Radio inicial de 15 bloques
@@ -451,7 +464,7 @@ function confirmarAbandono(player, tierra) {
         .title("ABANDONAR CASA")
         .body("¿Estas seguro? Cualquiera podra reclamar este terreno.")
         .button("SI, ABANDONAR", "textures/ui/check")
-        .button("Regresar", "textures/ui/cancel");
+        .button("§l§7>>  §4Regresar  §7<<", "textures/botones/regresar");
 
     form.show(player).then(r => {
         if (r.canceled || r.selection === 1) return menuGestionarCasa(player, tierra); // 🔙 Regresa
@@ -460,6 +473,14 @@ function confirmarAbandono(player, tierra) {
             const tierras = getTierras();
             const nuevasTierras = tierras.filter(t => t.id !== tierra.id);
             saveTierras(nuevasTierras);
+            
+            // ---> NUEVO: ELIMINAR TEXTO FLOTANTE DE LA CASA <---
+            try {
+                // Buscamos a la entidad por la etiqueta oculta que le pusimos al crearla
+                const entidades = player.dimension.getEntities({ type: "rikocraft:texto_flotante", tags: [`tierra_${tierra.id}`] });
+                entidades.forEach(e => e.remove());
+            } catch(e) {}
+
             player.sendMessage("§c[!] Has abandonado tu casa.");
             player.playSound("random.break");
             mostrarMenuPrincipal(player); // Volver al menú principal

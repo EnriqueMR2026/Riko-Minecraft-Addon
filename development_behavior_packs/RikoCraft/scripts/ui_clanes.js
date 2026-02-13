@@ -189,10 +189,20 @@ function formCrearClan(player) {
         player.sendMessage("§eConstruyendo base secreta subterránea...\nBunker Creado Correctamente!");
         const coordsBunker = construirBunker(player.dimension, Math.floor(player.location.x), Math.floor(player.location.z));
 
+        // ---> NUEVO: TEXTO FLOTANTE DEL BUNKER <---
+        const idClan = Date.now().toString(); // Generamos el ID aquí arriba
+        try {
+            // Ponemos el texto en el centro del bunker (altura de los ojos)
+            // coordsBunker ya nos da el suelo interior (yFondo + 2), sumamos 1.8 para la vista
+            const entity = player.dimension.spawnEntity("rikocraft:texto_flotante", { x: coordsBunker.x + 0.5, y: coordsBunker.y + 0.9, z: coordsBunker.z + 0.5 });
+            entity.nameTag = `§l${color}Bunker del Clan:§r\n${color}${nombreRaw}`;
+            entity.addTag(`clan_${idClan}`); // Etiqueta para borrarlo después
+        } catch (e) {}
+
         // 3. Crear Objeto Clan (USANDO TEMPLATE V2 ACTUALIZADO)
         const nuevoClan = {
             ...CLAN_TEMPLATE, 
-            id: Date.now().toString(),
+            id: idClan, // Usamos el ID generado
             nombre: nombreRaw,
             tag: `[${nombreRaw.toUpperCase()}]`,
             color: color,
@@ -697,7 +707,8 @@ function menuDisolverClan(player, clan) {
             `- Todos los miembros serán expulsados.`
         )
         .button("§cSI, BORRAR TODO", "textures/ui/trash")
-        .button("CANCELAR", "textures/ui/cancel");
+        // ---> APLICANDO TU CONSEJO VISUAL PARA BOTONES DE CANCELAR/REGRESAR <---
+        .button("§l§7>>  §4REGRESAR  §7<<", "textures/ui/cancel");
 
     form.show(player).then(r => {
         if (r.canceled || r.selection === 1) return menuGestionLider(player, clan); // 🔙 Se arrepintió
@@ -709,6 +720,13 @@ function menuDisolverClan(player, clan) {
             
             saveClanes(nuevosClanes);
             
+            // ---> NUEVO: ELIMINAR TEXTO FLOTANTE DEL BUNKER <---
+            try {
+                // Buscamos a la entidad por la etiqueta oculta
+                const entidades = player.dimension.getEntities({ type: "rikocraft:texto_flotante", tags: [`clan_${clan.id}`] });
+                entidades.forEach(e => e.remove());
+            } catch(e) {}
+
             // Efectos y mensajes dramáticos
             player.sendMessage(`§c[!] Has disuelto el clan ${clan.nombre}.`);
             player.playSound("random.break");
@@ -992,7 +1010,8 @@ function salirDelClan(player, clan) {
         .title("Abandonar Clan")
         .body("¿Estas seguro de que quieres salirte del clan?\nPerderas acceso al bunker y beneficios.")
         .button("SI, SALIR", "textures/ui/check")
-        .button("CANCELAR", "textures/ui/cancel");
+        // ---> APLICANDO TU CONSEJO VISUAL AQUÍ TAMBIÉN <---
+        .button("§l§7>>  §4REGRESAR  §7<<", "textures/ui/cancel");
 
     form.show(player).then(r => {
         if (r.canceled || r.selection === 1) return;
@@ -1007,6 +1026,12 @@ function salirDelClan(player, clan) {
             // Si el clan se queda vacio, ¿se borra?
             // Opcional: Si quieres que el clan muera si no hay nadie:
             if (clanes[cIndex].miembros.length === 0) {
+                // ---> NUEVO: ELIMINAR TEXTO FLOTANTE DEL BUNKER SI MUERE EL CLAN <---
+                try {
+                    const entidades = player.dimension.getEntities({ type: "rikocraft:texto_flotante", tags: [`clan_${clan.id}`] });
+                    entidades.forEach(e => e.remove());
+                } catch(e) {}
+                
                 clanes.splice(cIndex, 1); // Borrar clan entero
             }
             
