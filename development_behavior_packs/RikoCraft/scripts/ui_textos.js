@@ -12,6 +12,7 @@ export function menuTextos(player) {
         .title("§l§k5§r §l§0TEXTOS FLOTANTES §r§l§k5§r")
         .body("§7Gestor de Hologramas del Realm.")
         .button("§l§2CREAR TEXTO AQUI", "textures/botones/mapa_vacio")
+        .button("§l§2CREAR TOP AQUI", "textures/botones/mapa")
         .button("§l§6EDITAR TEXTOS", "textures/botones/editar_terrenos")
         .button("§l§4ELIMINAR TEXTOS", "textures/botones/eliminar")
         .button("§l§7>>  §4Regresar  §7<<", "textures/botones/regresar");
@@ -19,8 +20,9 @@ export function menuTextos(player) {
     menu.show(player).then(r => {
         if (r.canceled) return;
         if (r.selection === 0) crearTexto(player);
-        if (r.selection === 1) menuListaTextos(player, "editar");
-        if (r.selection === 2) menuListaTextos(player, "borrar");
+        if (r.selection === 1) crearTopMultiuso(player);
+        if (r.selection === 2) menuListaTextos(player, "editar");
+        if (r.selection === 3) menuListaTextos(player, "borrar");
     });
 }
 
@@ -54,6 +56,62 @@ function crearTexto(player) {
             player.playSound("random.levelup");
         } catch (error) {
             player.sendMessage("§cError al crear la entidad. ¿Creaste el archivo JSON rikocraft:texto_flotante?");
+        }
+    });
+}
+
+// =============================================================================
+// 🏆 CREAR LEADERBOARD MULTIUSO (DINERO, CLANES, SCOREBOARDS)
+// =============================================================================
+export function crearTopMultiuso(player) {
+    const form = new ModalFormData()
+        .title("Crear Leaderboard")
+        // dropdown: Pregunta, [Opciones] (Sin el '0' al final, ¡bien hecho!)
+        .dropdown("¿Qué tipo de Top quieres crear?", [
+            "Dinero (Solo Conectados)", 
+            "Dinero (Todos / Global)", 
+            "Clanes (Mejores Niveles)", 
+            "Scoreboard de Minecraft"
+        ])
+        .textField("Si elegiste Scoreboard, escribe su nombre interno\n(Ej: kills, muertes, nivel):", "Nombre del objetivo");
+
+    form.show(player).then(r => {
+        if (r.canceled) return menuTextos(player); // 🔙 Regresa con tu botón personalizado
+
+        const tipoElegido = r.formValues[0]; 
+        const objScoreboard = r.formValues[1].trim(); // Le quitamos espacios extra
+
+        try {
+            const dim = player.dimension;
+            const spawnPos = { x: player.location.x + 0.5, y: player.location.y + 1.5, z: player.location.z + 0.5 };
+            const entity = dim.spawnEntity("rikocraft:texto_flotante", spawnPos);
+            
+            // Asignamos la etiqueta secreta según lo que el usuario eligió
+            if (tipoElegido === 0) {
+                entity.nameTag = "§eCargando Top Online...";
+                entity.addTag("top_dinero_online"); 
+            } else if (tipoElegido === 1) {
+                entity.nameTag = "§eCargando Top Global...";
+                entity.addTag("top_dinero_global"); 
+            } else if (tipoElegido === 2) {
+                entity.nameTag = "§eCargando Top Clanes...";
+                entity.addTag("top_clanes"); 
+            } else if (tipoElegido === 3) {
+                if (objScoreboard === "") {
+                    player.sendMessage("§c[!] Error: Debes escribir el nombre de un Scoreboard.");
+                    entity.remove(); // Borramos la entidad fallida
+                    return;
+                }
+                entity.nameTag = "§eCargando Scoreboard...";
+                // Magia: Guardamos el nombre que escribiste dentro de la etiqueta
+                // Ej: Quedará como "top_score_kills"
+                entity.addTag(`top_score_${objScoreboard}`);
+            }
+            
+            player.sendMessage(`§a[!] Leaderboard creado exitosamente.`);
+            player.playSound("random.levelup");
+        } catch (error) {
+            player.sendMessage("§c[!] Error al crear la entidad del Top.");
         }
     });
 }

@@ -8,7 +8,7 @@ import { mostrarMenuPrincipal } from "./ui_menus.js";
 import { menuClanes, getClanDeJugador } from "./ui_clanes.js";
 import { menuTierras, puedeInteractuar, iniciarVigilancia } from "./ui_tierras.js";
 import { crearZonaProtegida, obtenerZonaActual, menuBorrarZona, iniciarCicloLimpiezaZonas, menuEditarZona } from "./ui_zonas.js";
-import { getSaldo, setSaldo, buscarJugador, VENTAS_PENDIENTES, formatoDorado, getDatosMundo, getConfigVar, setDatosMundo, 
+import { getSaldo, setSaldo, getCacheDinero, buscarJugador, VENTAS_PENDIENTES, formatoDorado, getDatosMundo, getConfigVar, setDatosMundo, 
     obtenerConfigEfectos, calcularCostoNivel } from "./utils.js";
 
 // =============================================================================
@@ -722,5 +722,101 @@ system.runInterval(() => {
         });
     }
 }, 80); // Cada 4 segundos
+
+// =============================================================================
+// ★ SÚPER MOTOR DEL LEADERBOARD (MULTIUSO)
+// =============================================================================
+// Se ejecuta cada 100 ticks (5 segundos aprox)
+system.runInterval(() => {
+    // --- 1. PRE-CALCULAR LOS TOPS FIJOS ---
+    
+    // A. TOP DINERO GLOBAL
+    const cacheGlobal = getCacheDinero();
+    const listaGlobal = Object.entries(cacheGlobal)
+        .sort((a, b) => b[1] - a[1]) // Mayor a menor
+        .slice(0, 10);
+        
+    let textoGlobal = "§l§e ★ TOP MILLONARIOS (GLOBAL) ★ §r\n";
+    if (listaGlobal.length === 0) textoGlobal += "§7No hay jugadores registrados.";
+    else listaGlobal.forEach((j, i) => textoGlobal += `${i === 0 ? "§6[1]" : (i === 1 ? "§7[2]" : (i === 2 ? "§c[3]" : `§8${i + 1}.`))} §b${j[0]} §f- §a$${j[1]}\n`);
+
+    // B. TOP DINERO ONLINE
+    const jugadoresOnline = world.getAllPlayers();
+    const listaOnline = jugadoresOnline
+        .map(p => { return { nombre: p.name, saldo: getSaldo(p) } })
+        .sort((a, b) => b.saldo - a.saldo)
+        .slice(0, 10);
+
+    let textoOnline = "§l§e ★ TOP MILLONARIOS (ONLINE) ★ §r\n";
+    if (listaOnline.length === 0) textoOnline += "§7Nadie conectado.";
+    else listaOnline.forEach((j, i) => textoOnline += `${i === 0 ? "§6[1]" : (i === 1 ? "§7[2]" : (i === 2 ? "§c[3]" : `§8${i + 1}.`))} §b${j.nombre} §f- §a$${j.saldo}\n`);
+
+    // C. TOP CLANES
+    const clanes = typeof getClanes === "function" ? getClanes() : []; 
+    const listaClanes = clanes
+        .sort((a, b) => (b.nivel || 1) - (a.nivel || 1)) 
+        .slice(0, 10);
+        
+    let textoClanes = "§l§e ★ MEJORES CLANES ★ §r\n";
+    if (listaClanes.length === 0) textoClanes += "§7No hay clanes fundados.";
+    else listaClanes.forEach((c, i) => textoClanes += `${i === 0 ? "§6[1]" : (i === 1 ? "§7[2]" : (i === 2 ? "§c[3]" : `§8${i + 1}.`))} ${c.color}${c.nombre} §f- §dNvl ${c.nivel || 1}\n`);
+
+
+    // --- 2. BUSCAR ENTIDADES Y ACTUALIZARLAS ---
+    const dimensiones = ["overworld", "nether", "the_end"];
+    for (const d of dimensiones) {
+        try {
+            const dim = world.getDimension(d);
+            const entidadesTop = dim.getEntities({ type: "rikocraft:texto_flotante" });
+
+            for (const ent of entidadesTop) {
+                const tags = ent.getTags();
+                
+                if (tags.includes("top_dinero_global")) {
+                    ent.nameTag = textoGlobal;
+                } 
+                else if (tags.includes("top_dinero_online")) {
+                    ent.nameTag = textoOnline;
+                }
+                else if (tags.includes("top_clanes")) {
+                    ent.nameTag = textoClanes;
+                }
+                else {
+                    const tagScore = tags.find(t => t.startsWith("top_score_"));
+                    if (tagScore) {
+                        const objName = tagScore.replace("top_score_", ""); 
+                        const objective = world.scoreboard.getObjective(objName);
+                        
+                        let textoScore = `§l§e  TOP: ${objName.toUpperCase()}  §r\n`;
+                        
+                        if (!objective) {
+                            textoScore += "§cScoreboard no encontrado o no existe.";
+                        } else {
+                            const participantes = objective.getParticipants();
+                            const listaScore = [];
+                            
+                            for (const part of participantes) {
+                                try {
+                                    const score = objective.getScore(part);
+                                    const nombre = part.displayName || "Desconocido";
+                                    listaScore.push({ nombre: nombre, score: score });
+                                } catch(e){}
+                            }
+                            
+                            const topScore = listaScore.sort((a, b) => b.score - a.score).slice(0, 10);
+                            
+                            if (topScore.length === 0) {
+                                textoScore += "§7No hay registros.";
+                            } else {
+                                topScore.forEach((s, i) => textoScore += `${i === 0 ? "§6[1]" : (i === 1 ? "§7[2]" : (i === 2 ? "§c[3]" : `§8${i + 1}.`))} §b${s.nombre} §f- §a${s.score}\n`);
+                            }
+                        }
+                        ent.nameTag = textoScore;
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+}, 100);
 
 //MUNDO

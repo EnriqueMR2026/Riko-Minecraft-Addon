@@ -59,19 +59,51 @@ const DEFAULTS_XP = {
     "XP_MOB_minecraft:player": 300
 };
 
+// --- CACHÉ GLOBAL DE DINERO (NUEVO PARA EL TOP) ---
+// Obtiene el registro contable de todos los jugadores (incluso los desconectados)
+export function getCacheDinero() {
+    // Usamos la función getDatosMundo que ya existe en este mismo archivo
+    let cache = getDatosMundo("CACHE_DINERO_GLOBAL");
+    if (!cache) {
+        cache = {}; // Objeto vacío si es la primera vez que se crea
+        setDatosMundo("CACHE_DINERO_GLOBAL", cache);
+    }
+    return cache;
+}
+
 // --- OBTENER DINERO ---
 export function getSaldo(player) {
-    const saldo = player.getDynamicProperty("dinero");
-    if (saldo === undefined) return CONFIG.DINERO_INICIAL;
+    let saldo = player.getDynamicProperty("dinero");
+    // Si no tiene dinero asignado, le damos el inicial de la CONFIG
+    if (saldo === undefined) saldo = CONFIG.DINERO_INICIAL;
+
+    // ---> NUEVO: SINCRONIZACIÓN SILENCIOSA <---
+    // Cada vez que el juego revisa el dinero de un jugador activo, 
+    // nos aseguramos de que su saldo esté actualizado en el Caché Global.
+    const cache = getCacheDinero();
+    if (cache[player.name] !== saldo) {
+        cache[player.name] = saldo;
+        setDatosMundo("CACHE_DINERO_GLOBAL", cache);
+    }
+
     return saldo;
 }
 
 // --- GUARDAR DINERO ---
 export function setSaldo(player, cantidad) {
+    // Evitamos saldos negativos
     if (cantidad < 0) cantidad = 0;
+    
+    // 1. Guardamos directamente en el jugador (Como siempre)
     player.setDynamicProperty("dinero", cantidad);
-}
 
+    // ---> NUEVO: GUARDAR EN EL CACHÉ GLOBAL <---
+    // Guardamos la copia de seguridad en el mundo para que el Top 
+    // pueda leerlo aunque el jugador se haya ido a dormir.
+    const cache = getCacheDinero();
+    cache[player.name] = cantidad;
+    setDatosMundo("CACHE_DINERO_GLOBAL", cache);
+}
 // --- BUSCAR JUGADOR ---
 export function buscarJugador(nombreParcial) {
     const nombreLimpio = nombreParcial.replace(/"/g, "").toLowerCase();
