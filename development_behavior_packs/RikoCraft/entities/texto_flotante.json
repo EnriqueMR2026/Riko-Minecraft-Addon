@@ -35,9 +35,6 @@
       "minecraft:nameable": {
         "always_show": true,
         "allow_name_tag_renaming": false
-      },
-      "minecraft:scale": {
-        "value": 0.0
       }
     }
   }

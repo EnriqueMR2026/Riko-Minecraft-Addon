@@ -108,37 +108,45 @@ function menuListaTextos(player, accion) {
 }
 
 // =============================================================================
-// 3. EDITAR TEXTO Y POSICION
+// 3. EDITAR TEXTO Y POSICION (VERSIÓN CORREGIDA PARA 3.0.0-ALPHA)
 // =============================================================================
 function editarTextoFlotante(player, entidad) {
-    // Convertimos los verdaderos saltos de linea a "\n" para que pueda editarlos en la caja de texto
     const textoParaEditar = entidad.nameTag.replace(/\n/g, '\\n');
-    
     const loc = entidad.location;
 
+    // Cambiamos la estructura para no usar el 3er parametro problematico de la API.
+    // Ahora te mostrará el texto actual arriba, y solo escribes si quieres cambiarlo.
     const form = new ModalFormData()
-        .title("Editar Texto")
-        .textField("Texto:", "Nuevo texto...", textoParaEditar)
-        .textField("Coordenada X:", "", loc.x.toFixed(2))
-        .textField("Coordenada Y:", "", loc.y.toFixed(2))
-        .textField("Coordenada Z:", "", loc.z.toFixed(2));
+        .title("Editar Texto Flotante")
+        .textField(`Texto actual:\n§e${textoParaEditar}§r\n\nNuevo texto (Deja vacío para NO cambiar):`, "Escribe aqui el nuevo texto...")
+        .textField(`Coordenada X (Actual: ${loc.x.toFixed(2)})`, "Deja vacio para no mover")
+        .textField(`Coordenada Y (Actual: ${loc.y.toFixed(2)})`, "Deja vacio para no mover")
+        .textField(`Coordenada Z (Actual: ${loc.z.toFixed(2)})`, "Deja vacio para no mover");
 
     form.show(player).then(r => {
         if (r.canceled) return menuTextos(player);
 
         const nuevoTexto = r.formValues[0];
-        const nx = parseFloat(r.formValues[1]);
-        const ny = parseFloat(r.formValues[2]);
-        const nz = parseFloat(r.formValues[3]);
-
-        if (!nuevoTexto || isNaN(nx) || isNaN(ny) || isNaN(nz)) {
-            return player.sendMessage("§cDatos inválidos. Revisa las coordenadas.");
-        }
+        const nxTxt = r.formValues[1];
+        const nyTxt = r.formValues[2];
+        const nzTxt = r.formValues[3];
 
         try {
-            entidad.nameTag = nuevoTexto.replace(/\\n/g, '\n');
-            entidad.teleport({ x: nx, y: ny, z: nz }, { dimension: entidad.dimension });
+            // 1. Si el jugador escribió algo en la caja, actualizamos el texto
+            if (nuevoTexto && nuevoTexto.trim() !== "") {
+                entidad.nameTag = nuevoTexto.replace(/\\n/g, '\n');
+            }
+
+            // 2. Si el jugador escribió coordenadas nuevas, las usamos. Si lo dejó en blanco, se queda donde está.
+            const finalX = (nxTxt && nxTxt.trim() !== "") ? parseFloat(nxTxt) : loc.x;
+            const finalY = (nyTxt && nyTxt.trim() !== "") ? parseFloat(nyTxt) : loc.y;
+            const finalZ = (nzTxt && nzTxt.trim() !== "") ? parseFloat(nzTxt) : loc.z;
+
+            // Teletransportamos al holograma a la nueva ubicación
+            entidad.teleport({ x: finalX, y: finalY, z: finalZ }, { dimension: entidad.dimension });
+            
             player.sendMessage("§a[!] Texto actualizado correctamente.");
+            player.playSound("random.levelup");
         } catch(e) {
             player.sendMessage("§cError al actualizar la entidad.");
         }
