@@ -14,7 +14,7 @@ export function menuTextos(player) {
         .button("§l§2CREAR TEXTO AQUI", "textures/botones/mapa_vacio")
         .button("§l§6EDITAR TEXTOS", "textures/botones/editar_terrenos")
         .button("§l§4ELIMINAR TEXTOS", "textures/botones/eliminar")
-        .button("§l§7>> Regresar <<", "textures/botones/regresar");
+        .button("§l§7>>  §4Regresar  §7<<", "textures/botones/regresar");
 
     menu.show(player).then(r => {
         if (r.canceled) return;
@@ -108,20 +108,20 @@ function menuListaTextos(player, accion) {
 }
 
 // =============================================================================
-// 3. EDITAR TEXTO Y POSICION (VERSIÓN CORREGIDA PARA 3.0.0-ALPHA)
+// 3. EDITAR TEXTO Y POSICION (CON PRE-LLENADO PERFECTO)
 // =============================================================================
 function editarTextoFlotante(player, entidad) {
+    // Convertimos los saltos de línea para que se vean como \n en la caja de texto
     const textoParaEditar = entidad.nameTag.replace(/\n/g, '\\n');
     const loc = entidad.location;
 
-    // Cambiamos la estructura para no usar el 3er parametro problematico de la API.
-    // Ahora te mostrará el texto actual arriba, y solo escribes si quieres cambiarlo.
+    // AQUI ESTA LA MAGIA: usamos { defaultValue: valor } para evitar el error de la versión alpha
     const form = new ModalFormData()
         .title("Editar Texto Flotante")
-        .textField(`Texto actual:\n§e${textoParaEditar}§r\n\nNuevo texto (Deja vacío para NO cambiar):`, "Escribe aqui el nuevo texto...")
-        .textField(`Coordenada X (Actual: ${loc.x.toFixed(2)})`, "Deja vacio para no mover")
-        .textField(`Coordenada Y (Actual: ${loc.y.toFixed(2)})`, "Deja vacio para no mover")
-        .textField(`Coordenada Z (Actual: ${loc.z.toFixed(2)})`, "Deja vacio para no mover");
+        .textField("Texto Flotante:", "Escribe aqui el texto...", { defaultValue: textoParaEditar })
+        .textField("Coordenada X:", "", { defaultValue: loc.x.toFixed(2) })
+        .textField("Coordenada Y:", "", { defaultValue: loc.y.toFixed(2) })
+        .textField("Coordenada Z:", "", { defaultValue: loc.z.toFixed(2) });
 
     form.show(player).then(r => {
         if (r.canceled) return menuTextos(player);
@@ -132,18 +132,20 @@ function editarTextoFlotante(player, entidad) {
         const nzTxt = r.formValues[3];
 
         try {
-            // 1. Si el jugador escribió algo en la caja, actualizamos el texto
+            // 1. Actualizamos el texto
             if (nuevoTexto && nuevoTexto.trim() !== "") {
                 entidad.nameTag = nuevoTexto.replace(/\\n/g, '\n');
             }
 
-            // 2. Si el jugador escribió coordenadas nuevas, las usamos. Si lo dejó en blanco, se queda donde está.
-            const finalX = (nxTxt && nxTxt.trim() !== "") ? parseFloat(nxTxt) : loc.x;
-            const finalY = (nyTxt && nyTxt.trim() !== "") ? parseFloat(nyTxt) : loc.y;
-            const finalZ = (nzTxt && nzTxt.trim() !== "") ? parseFloat(nzTxt) : loc.z;
+            // 2. Actualizamos las coordenadas (ya pre-llenadas)
+            const finalX = parseFloat(nxTxt);
+            const finalY = parseFloat(nyTxt);
+            const finalZ = parseFloat(nzTxt);
 
-            // Teletransportamos al holograma a la nueva ubicación
-            entidad.teleport({ x: finalX, y: finalY, z: finalZ }, { dimension: entidad.dimension });
+            // Si por alguna razon borraron el numero y no es valido, no lo movemos
+            if (!isNaN(finalX) && !isNaN(finalY) && !isNaN(finalZ)) {
+                entidad.teleport({ x: finalX, y: finalY, z: finalZ }, { dimension: entidad.dimension });
+            }
             
             player.sendMessage("§a[!] Texto actualizado correctamente.");
             player.playSound("random.levelup");

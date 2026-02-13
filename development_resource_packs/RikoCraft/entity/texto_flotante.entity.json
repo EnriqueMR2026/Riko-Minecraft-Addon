@@ -3,7 +3,18 @@
   "minecraft:client_entity": {
     "description": {
       "identifier": "rikocraft:texto_flotante",
-      "render_controllers": []
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/blocks/glass" 
+      },
+      "geometry": {
+        "default": "geometry.texto_flotante"
+      },
+      "render_controllers": [
+        "controller.render.default"
+      ]
     }
   }
 }
