@@ -6,6 +6,7 @@ import { CONFIG } from "./config.js";
 import { iniciarCinematica } from "./cinematica.js";
 import { mostrarMenuPrincipal } from "./ui_menus.js"; 
 import { menuClanes, getClanDeJugador } from "./ui_clanes.js";
+import { crearTumbaJugador } from "./tumba.js";
 import { menuTierras, puedeInteractuar, iniciarVigilancia, obtenerTierraEnPos } from "./ui_tierras.js";
 import { crearZonaProtegida, obtenerZonaActual, menuBorrarZona, iniciarCicloLimpiezaZonas, menuEditarZona } from "./ui_zonas.js";
 import { getSaldo, setSaldo, getCacheDinero, buscarJugador, VENTAS_PENDIENTES, formatoDorado, getDatosMundo, getConfigVar, setDatosMundo, 
@@ -905,5 +906,18 @@ system.runInterval(() => {
         }
     }
 }, 100);
+
+// =============================================================================
+// 🪦 EVENTO: DETECTAR LA MUERTE DEL JUGADOR
+// =============================================================================
+world.afterEvents.entityDie.subscribe((event) => {
+    const jugadorMuerto = event.deadEntity;
+    
+    // Verificamos que la entidad que murió sea un jugador (y no una vaca o un zombi)
+    if (jugadorMuerto.typeId === "minecraft:player") {
+        // Ejecutamos la magia de la tumba
+        crearTumbaJugador(jugadorMuerto);
+    }
+});
 
 //MUNDO

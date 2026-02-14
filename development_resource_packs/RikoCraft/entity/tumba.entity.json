@@ -1,0 +1,27 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "rikocraft:tumba",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/tumba"
+      },
+      "geometry": {
+        "default": "geometry.tumba"
+      },
+      "particle_effects": {
+        "magia_ender": "minecraft:ender_chest_particles"
+      },
+      "scripts": {
+        "animate": [ "animacion_particulas" ]
+      },
+      "animations": {
+        "animacion_particulas": "animation.tumba.particulas"
+      },
+      "render_controllers": [ "controller.render.default" ]
+    }
+  }
+}
