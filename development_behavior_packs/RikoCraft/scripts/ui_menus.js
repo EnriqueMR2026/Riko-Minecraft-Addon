@@ -3,7 +3,7 @@ import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
 import { CONFIG } from "./config.js";
 import { menuClanes } from "./ui_clanes.js";
 import { menuTierras } from "./ui_tierras.js";
-import { obtenerZonaActual } from "./ui_zonas.js";
+import { obtenerZonaActual, menuBorrarZona, crearZonaProtegida, menuEditarZona } from "./ui_zonas.js";
 import { menuTextos } from "./ui_textos.js";
 import { getSaldo, buscarJugador, setSaldo, getWaypoints, addWaypoint, deleteWaypoint, obtenerInventario, VENTAS_PENDIENTES, 
     getDatosMundo, setDatosMundo, setConfigVar, getConfigVar, calcularCostoNivel } from "./utils.js";
@@ -83,7 +83,7 @@ export function mostrarMenuPrincipal(player) {
     // ADMIN (Solo visible para Dios)
     if (esAdmin) {
         menu.button("§l§7>>  §5Administracion  §7<<", "textures/botones/administracion"); 
-        menu.button("§l§7>>  §6Gamemode  §7<<", "textures/items/diamond_pickaxe");
+        menu.button("§l§7>>  §6Proteccion  §7<<", "textures/items/iron_axe"); // <-- NUEVO BOTON
         menu.button("§l§7>>  §dTextos Flotantes  §7<<", "textures/items/name_tag");
     }
 
@@ -109,8 +109,8 @@ export function mostrarMenuPrincipal(player) {
             case 4: // Administracion
                 if (esAdmin) menuPanelAdmin(player); break;
 
-            case 5: // Gamemode
-                if (esAdmin) menuGamemode(player); break;
+            case 5: // Proteccion 
+                if (esAdmin) menuProteccionAdmin(player); break;
             
             case 6: // Textos Flotantes
                 if (esAdmin) menuTextos(player); break;
@@ -1330,4 +1330,94 @@ function menuAdminEconomia(player) {
         }
         //menuPanelAdmin(player); // 🔄 Regresa
     });
+}
+
+// =============================================================================
+// 🛡️ SUB-MENÚ: PROTECCIÓN DE ZONAS (ADMIN)
+// =============================================================================
+function menuProteccionAdmin(player) {
+    const form = new ActionFormData()
+        .title("Protección de Zonas")
+        .body("Herramientas mágicas para gestionar el Realm:")
+        .button("§l§7>> §dPosición 1 §7<<\n§r(Esquina A)", "textures/ui/plus") // 0
+        .button("§l§7>> §dPosición 2 §7<<\n§r(Esquina B)", "textures/ui/plus") // 1
+        .button("§l§7>> §6Crear Proteccion §7<<\n§r(Requiere Pos 1 y 2)", "textures/ui/check") // 2
+        .button("§l§7>> §bEditar Zona §7<<\n§r(Ajustar reglas)", "textures/botones/herramientas") // 3
+        .button("§l§7>> §4Eliminar Zona §7<<\n§r(Borrar área)", "textures/botones/eliminar") // 4
+        .button("§l§7>> §4Regresar §7<<", "textures/botones/regresar"); // 5
+
+    forzarApertura(player, form, (r) => {
+        if (r.canceled) return mostrarMenuPrincipal(player);
+
+        if (r.selection === 0) {
+            const pos = { x: Math.floor(player.location.x), y: Math.floor(player.location.y), z: Math.floor(player.location.z) };
+            player.setDynamicProperty("temp_pos1", JSON.stringify(pos));
+            player.sendMessage(`§a[1/3] Esquina A guardada: ${pos.x}, ${pos.y}, ${pos.z}. Ve a la opuesta y marca la Posición 2.`);
+            player.playSound("random.orb");
+        }
+        else if (r.selection === 1) {
+            const pos = { x: Math.floor(player.location.x), y: Math.floor(player.location.y), z: Math.floor(player.location.z) };
+            player.setDynamicProperty("temp_pos2", JSON.stringify(pos));
+            player.sendMessage(`§a[2/3] Esquina B guardada: ${pos.x}, ${pos.y}, ${pos.z}. Ahora puedes Crear la Zona.`);
+            player.playSound("random.orb");
+        }
+        else if (r.selection === 2) {
+            formCrearZonaAdmin(player);
+        }
+        else if (r.selection === 3) {
+            menuEditarZona(player);
+        }
+        else if (r.selection === 4) {
+            menuBorrarZona(player);
+        }
+        else if (r.selection === 5) {
+            mostrarMenuPrincipal(player);
+        }
+    });
+}
+
+function formCrearZonaAdmin(player) {
+    const p1Str = player.getDynamicProperty("temp_pos1");
+    const p2Str = player.getDynamicProperty("temp_pos2");
+
+    if (!p1Str || !p2Str) {
+        player.sendMessage("§c[!] Faltan coordenadas. Debes marcar la Posición 1 y Posición 2 primero.");
+        return menuProteccionAdmin(player); // Regresamos al menú
+    }
+
+    const form = new ModalFormData()
+        .title("Configurar Zona 3D")
+        .textField("Nombre de la Zona:", "Ej: Lobby PvP")
+        .toggle("Ver Bordes (Admin)", true)
+        .toggle("PVP Activado", false)
+        .toggle("Abrir Cofres", false)
+        .toggle("Usar Puertas", true)
+        .toggle("Efectos de Clan", true)
+        .toggle("Mobs Hostiles", false)
+        .toggle("Mobs Pasivos", false);
+
+    // Pequeña pausa para asegurar que se abra el Modal fluido
+    system.runTimeout(() => {
+        form.show(player).then(r => {
+            if (r.canceled) return menuProteccionAdmin(player);
+
+            const nombre = r.formValues[0] || "Zona Sin Nombre";
+            const opciones = {
+                bordes: r.formValues[1],
+                pvp: r.formValues[2],
+                cofres: r.formValues[3],
+                puertas: r.formValues[4],
+                efectos: r.formValues[5],
+                hostiles: r.formValues[6],
+                pasivos: r.formValues[7]
+            };
+
+            // Mandamos los datos limpios a tu base de zonas
+            crearZonaProtegida(player, nombre, JSON.parse(p1Str), JSON.parse(p2Str), opciones);
+            
+            player.sendMessage(`§e[OK] Zona "${nombre}" creada.`);
+            player.sendMessage(`§7Bordes:${opciones.bordes ? "§aON" : "§cOFF"} | PvP:${opciones.pvp ? "§aON" : "§cOFF"} | Mobs:${opciones.hostiles ? "§aON" : "§cOFF"}`);
+            player.playSound("random.levelup");
+        });
+    }, 5);
 }
