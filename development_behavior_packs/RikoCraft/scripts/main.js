@@ -6,7 +6,7 @@ import { CONFIG } from "./config.js";
 import { iniciarCinematica } from "./cinematica.js";
 import { mostrarMenuPrincipal } from "./ui_menus.js"; 
 import { menuClanes, getClanDeJugador } from "./ui_clanes.js";
-import { menuTierras, puedeInteractuar, iniciarVigilancia } from "./ui_tierras.js";
+import { menuTierras, puedeInteractuar, iniciarVigilancia, obtenerTierraEnPos } from "./ui_tierras.js";
 import { crearZonaProtegida, obtenerZonaActual, menuBorrarZona, iniciarCicloLimpiezaZonas, menuEditarZona } from "./ui_zonas.js";
 import { getSaldo, setSaldo, getCacheDinero, buscarJugador, VENTAS_PENDIENTES, formatoDorado, getDatosMundo, getConfigVar, setDatosMundo, 
     obtenerConfigEfectos, calcularCostoNivel } from "./utils.js";
@@ -484,9 +484,12 @@ world.beforeEvents.playerBreakBlock.subscribe((event) => {
 
         // Si llegamos aquí, es que NO estaba permitido interactuar con ese bloque.
         event.cancel = true;
-        system.run(() => player.onScreenDisplay.setActionBar(`§cProtegido: ${zonaAdmin.nombre}`));
-        return; 
-    }
+        system.run(() => {
+            player.onScreenDisplay.setActionBar(`§cProtegido: ${zonaAdmin.nombre}`);
+            player.setDynamicProperty("hud_pausa", Date.now() + 2500);
+        });
+        return;
+    } // <--- ¡AQUÍ ESTÁ LA CORRECCIÓN! Faltaba cerrar el bloque if (zonaAdmin)
 
     // B. REVISIÓN SECUNDARIA: ¿ES PROPIEDAD DE OTRO JUGADOR?
     const x = Math.floor(event.block.location.x);
@@ -496,7 +499,15 @@ world.beforeEvents.playerBreakBlock.subscribe((event) => {
     // Importamos puedeInteractuar de ui_tierras.js
     if (!puedeInteractuar(player, x, z, y)) { // <--- NUEVO: Enviamos la Y a la función
         event.cancel = true;
-        system.run(() => player.onScreenDisplay.setActionBar("§cPropiedad Privada"));
+        
+        // Obtenemos los datos de la tierra para saber quién es el dueño
+        const tierra = obtenerTierraEnPos(x, z);
+        const dueño = tierra ? tierra.owner : "Desconocido";
+
+        system.run(() => {
+            player.onScreenDisplay.setActionBar(`§c§lPROPIEDAD DE: §e${dueño.toUpperCase()}`);
+            player.setDynamicProperty("hud_pausa", Date.now() + 2500); // 2.5 Segundos de pausa
+        });
     }
 });
 
@@ -515,7 +526,10 @@ if (eventoInteraccion) {
         const zonaAdmin = obtenerZonaActual(player);
         if (zonaAdmin) {
             event.cancel = true;
-            system.run(() => player.onScreenDisplay.setActionBar(`§cProtegido: ${zonaAdmin.nombre}`));
+            system.run(() => {
+                player.onScreenDisplay.setActionBar(`§cProtegido: ${zonaAdmin.nombre}`);
+                player.setDynamicProperty("hud_pausa", Date.now() + 2500);
+            });
             return; // ¡ALTO! Si está en zona admin, bloqueamos todo aquí.
         }
 
@@ -527,7 +541,14 @@ if (eventoInteraccion) {
         // Enviamos la X, Z y la nueva Y a nuestra función maestra
         if (!puedeInteractuar(player, x, z, y)) { 
             event.cancel = true;
-            system.run(() => player.onScreenDisplay.setActionBar("§cPropiedad Privada"));
+
+            const tierra = obtenerTierraEnPos(x, z);
+            const dueño = tierra ? tierra.owner : "Desconocido";
+
+            system.run(() => {
+                player.onScreenDisplay.setActionBar(`§c§lPROPIEDAD DE: §e${dueño.toUpperCase()}`);
+                player.setDynamicProperty("hud_pausa", Date.now() + 2500);
+            });
         }
     });
 }
@@ -602,7 +623,10 @@ world.afterEvents.entityDie.subscribe((event) => {
         // REGLA B: VÍCTIMA SIN CLAN (NUEVO)
         // Si matas a un jugador que NO tiene clan -> No XP
         if (!clanVictima) {
-            system.run(() => killer.onScreenDisplay.setActionBar("§7Jugador sin clan = Sin Recompensa"));
+            system.run(() => {
+                killer.onScreenDisplay.setActionBar("§7Jugador sin clan = Sin Recompensa");
+                killer.setDynamicProperty("hud_pausa", Date.now() + 2500);
+            });
             return; // Cortamos aquí.
         }
     }

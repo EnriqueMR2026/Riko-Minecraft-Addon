@@ -122,10 +122,20 @@ function menuReclamarTierra(player) {
     const px = Math.floor(player.location.x);
     const pz = Math.floor(player.location.z);
     
-    // Verificar si hay vecinos cerca (Anti-Colisión)
+    // Verificar si hay vecinos cerca (Lógica de Cuadrados Anti-Colisión)
+    const RADIO_NUEVO = 25; // El mismo radio inicial que asignas en crearTierra
+    
     const conflicto = tierras.some(t => {
-        const dist = Math.sqrt(Math.pow(t.center.x - px, 2) + Math.pow(t.center.z - pz, 2));
-        return dist < 35; 
+        const distX = Math.abs(t.center.x - px);
+        const distZ = Math.abs(t.center.z - pz);
+        
+        // Para que dos cuadrados NO choquen, la distancia entre sus centros 
+        // debe ser estrictamente mayor a la suma de sus radios.
+        // Sumamos +1 como "margen de seguridad" para que ni siquiera compartan la pared.
+        const limiteChoque = t.radio + RADIO_NUEVO + 1;
+        
+        // Si ambas distancias (X y Z) son menores al límite, significa que los terrenos se enciman o invaden.
+        return (distX < limiteChoque) && (distZ < limiteChoque);
     });
 
     const costoSemanal = getConfigVar("COSTO_RENTA_SEMANAL");
@@ -616,7 +626,9 @@ export function iniciarVigilancia() {
 
                         player.applyImpulse({ x: knockX * 1, y: 0.5, z: knockZ * 1 });
                         player.playSound("mob.shulker.bullet.hit");
-                        player.onScreenDisplay.setActionBar("§c PROPIEDAD PRIVADA ");
+                        // Mostramos el nombre del dueño y le damos 3 segundos (3000 ms) de pausa al HUD principal
+                        player.onScreenDisplay.setActionBar(`§c§lPROPIEDAD DE: §e${tierra.owner.toUpperCase()}`);
+                        player.setDynamicProperty("hud_pausa", Date.now() + 3000);
                         
                         // Si lo empujamos, le mostramos el borde para que entienda por qué
                         mostrarMuroParticulas(player, px, pz, py, cx, cz, r);
