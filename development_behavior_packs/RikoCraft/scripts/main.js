@@ -6,7 +6,7 @@ import { CONFIG } from "./config.js";
 import { iniciarCinematica } from "./cinematica.js";
 import { mostrarMenuPrincipal } from "./ui_menus.js"; 
 import { menuClanes, getClanDeJugador } from "./ui_clanes.js";
-import { crearTumbaJugador } from "./tumba.js";
+import { crearTumbaJugador, obtenerTextoRadarTumba, intentarRomperTumba, adminLimpiarTumbasCercanas } from "./tumba.js";
 import { menuTierras, puedeInteractuar, iniciarVigilancia, obtenerTierraEnPos } from "./ui_tierras.js";
 import { crearZonaProtegida, obtenerZonaActual, menuBorrarZona, iniciarCicloLimpiezaZonas, menuEditarZona } from "./ui_zonas.js";
 import { getSaldo, setSaldo, getCacheDinero, buscarJugador, VENTAS_PENDIENTES, formatoDorado, getDatosMundo, getConfigVar, setDatosMundo, 
@@ -20,6 +20,14 @@ import { getSaldo, setSaldo, getCacheDinero, buscarJugador, VENTAS_PENDIENTES, f
 system.runInterval(() => {
     for (const player of world.getPlayers()) {
         
+        // --- 🪦 INYECCIÓN DE RADAR DE TUMBA (SECUESTRO DE HUD) ---
+        const textoRadar = obtenerTextoRadarTumba(player);
+        if (textoRadar) {
+            // Si el radar está activo, mostramos las coordenadas y saltamos al siguiente jugador
+            player.onScreenDisplay.setActionBar(textoRadar);
+            continue; 
+        }
+
         // --- FIX DE CONFLICTO: PAUSA INTELIGENTE ---
         // Si el jugador recibió un mensaje importante (XP, Alerta),
         // el HUD se detiene unos segundos para dejar leerlo.
@@ -60,10 +68,11 @@ system.runInterval(() => {
     }
 }, 15); // 20 ticks = 1 segundo
 
-
-// --- 2. BIENVENIDA ---
+// --- 2. BIENVENIDA Y REAPARICIÓN ---
 world.afterEvents.playerSpawn.subscribe((event) => {
     const player = event.player;
+    
+    // Caso A: El jugador entra al servidor (Login)
     if (event.initialSpawn) {
         if (!player.hasTag(CONFIG.TAG_VETERANO)) {
             world.sendMessage(`§b¡Bienvenido ${player.name} a RikoCraft Temp 9!`);
@@ -71,9 +80,33 @@ world.afterEvents.playerSpawn.subscribe((event) => {
         } else {
             player.sendMessage(`§aBienvenido de nuevo, ${player.name}`);
         }
+    } 
+    // Caso B: El jugador reaparece (Respawn tras morir)
+    else {
+        // Buscamos el TAG de seguridad que pusimos en tumba.js
+        if (player.hasTag("rikocraft:borrar_xp")) {
+            
+            // Un pequeño delay de 1 segundo (20 ticks) para asegurar estabilidad
+            system.runTimeout(() => {
+                try {
+                    // Verificamos que el jugador siga en el mundo
+                    if (!player.isValid()) return;
+
+                    // 1. Borramos la experiencia (Niveles y puntos)
+                    player.runCommandAsync("xp -20000L @s"); 
+                    player.runCommandAsync("xp -200000 @s"); 
+                    
+                    // 2. Quitamos el TAG para que no se repita el borrado
+                    player.removeTag("rikocraft:borrar_xp");
+                    
+                    player.sendMessage("§7[!] Tu experiencia ha sido depositada en la tumba.");
+                } catch(e) {
+                    // Error silencioso por seguridad
+                }
+            }, 40); 
+        }
     }
 });
-
 // --- 3. DETECTOR DE CINEMÁTICA ---
 system.runInterval(() => {
     for (const player of world.getPlayers()) {
@@ -93,6 +126,15 @@ system.runInterval(() => {
 world.beforeEvents.chatSend.subscribe((event) => {
     const player = event.sender;
     const message = event.message.trim();
+
+    // Comando para limpiar tumbas en un radio de 10 bloques
+        if (message === "x.limpiar_tumbas") {
+            event.cancel = true;
+            system.run(() => {
+                adminLimpiarTumbasCercanas(player);
+            });
+            return;
+        }
 
     // ---> COMANDOS DE ADMIN PARA CREAR ZONAS (x.pos1, x.pos2, x.proteger) <---
     if (player.hasTag(CONFIG.TAG_ADMIN)) {
@@ -908,15 +950,31 @@ system.runInterval(() => {
 }, 100);
 
 // =============================================================================
-// 🪦 EVENTO: DETECTAR LA MUERTE DEL JUGADOR
+// EVENTO: DETECTAR LA MUERTE DEL JUGADOR
 // =============================================================================
 world.afterEvents.entityDie.subscribe((event) => {
     const jugadorMuerto = event.deadEntity;
     
-    // Verificamos que la entidad que murió sea un jugador (y no una vaca o un zombi)
+    // Verificamos que sea un jugador
     if (jugadorMuerto.typeId === "minecraft:player") {
-        // Ejecutamos la magia de la tumba
+        // Ejecutamos la creación de la tumba
         crearTumbaJugador(jugadorMuerto);
+        
+        // Comentario: La función crearTumbaJugador (en tumba.js) ahora también
+        // marca al jugador para que al reaparecer se le limpie la experiencia.
+    }
+});
+
+// =============================================================================
+// 🪦 EVENTO: GOLPEAR LA TUMBA PARA RECUPERAR COSAS
+// =============================================================================
+world.afterEvents.entityHitEntity.subscribe((event) => {
+    const atacante = event.damagingEntity;
+    const victima = event.hitEntity;
+    
+    // Si un jugador golpea una tumba...
+    if (atacante.typeId === "minecraft:player" && victima.typeId === "rikocraft:tumba") {
+        intentarRomperTumba(atacante, victima);
     }
 });
 

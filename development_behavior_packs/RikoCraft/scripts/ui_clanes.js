@@ -820,7 +820,7 @@ function salirDeBaseClan(player) {
             const spawnSeguro = {
                 name: "Lobby Seguro",
                 x: 0,   // <--- Coordenada X del Spawn del Realm
-                y: 100, // <--- Coordenada Y del Spawn
+                y: 100, // <--- Coordenada Y del Spawn[]
                 z: 0,   // <--- Coordenada Z del Spawn
                 dim: "minecraft:overworld"
             };

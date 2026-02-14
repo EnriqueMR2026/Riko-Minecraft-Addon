@@ -393,23 +393,40 @@ function iniciarTimerVenta(vendedor, nombreComprador, idVenta) {
 
 // --- SUB-MENÚ: CONFIGURACIÓN HUD ---
 function menuConfigHUD(player) {
+    // Leemos si el radar está prendido o apagado para mostrarlo en el botón
+    const radarActivo = player.getDynamicProperty("hud_tumba") ? "§aON" : "§cOFF";
+
     const form = new ActionFormData()
         .title("Configuración de Pantalla")
         .body("Selecciona qué información quieres ver arriba de la barra de experiencia.")
         .button("§l§7>>  §4APAGADO  §7<<\n§r(No Mostrar Informacion)", "textures/botones/apagado")
         .button(`§l§7>>  §2DINERO  §7<<\n§r(Mostrar tus ${CONFIG.MONEDA})`, "textures/botones/dinero")
         .button("§l§7>>  §6CLAN  §7<<\n§r(Nivel y Experiencia)", "textures/botones/clanes")
-        .button("§l§7>>  §0AMBOS  §7<<\n§r(DINERO Y CLAN)", "textures/botones/dinero_y_clanes");
+        .button("§l§7>>  §0AMBOS  §7<<\n§r(DINERO Y CLAN)", "textures/botones/dinero_y_clanes")
+        // NUEVO BOTÓN PARA EL RADAR DE LA TUMBA (Botón 4)
+        .button(`§l§7>>  §5RADAR DE TUMBA: ${radarActivo}  §7<<\n§r(Distancia y Tiempo)`, "textures/items/ender_eye");
 
     form.show(player).then(r => {
         if (r.canceled) return mostrarMenuBanco(player);
 
+        // --- SI PRESIONÓ EL BOTÓN DEL RADAR (Opción 4) ---
+        if (r.selection === 4) {
+            const estadoActual = player.getDynamicProperty("hud_tumba");
+            player.setDynamicProperty("hud_tumba", !estadoActual); // Alterna entre ON y OFF
+            
+            player.sendMessage(`§a[!] Radar de Tumba cambiado a: ${!estadoActual ? "ON" : "OFF"}`);
+            player.playSound("random.click");
+            
+            // Volvemos a abrir el menú para que vea el botón actualizado (opcional, pero se ve muy bien)
+            return menuConfigHUD(player); 
+        }
+
+        // --- SI PRESIONÓ LOS BOTONES NORMALES (0, 1, 2, 3) ---
         // Guardamos la selección en la propiedad del jugador
         player.setDynamicProperty("hud_mode", r.selection);
         
         let mensajePersonalizado = "";
 
-        // Aquí controlas cada mensaje por separado
         switch (r.selection) {
             case 0:
                 mensajePersonalizado = "Configuración actualizada: §6Se ha ocultado toda la información.";
@@ -428,8 +445,6 @@ function menuConfigHUD(player) {
         // Enviamos el mensaje final
         player.sendMessage(`§a[!] ${mensajePersonalizado}`);
         player.playSound("random.click");
-        
-        // mostrarMenuBanco(player);
     });
 }
 

@@ -6,6 +6,18 @@
          "sounds": [
             "sounds/RikoCraftIntro"
          ]
+      },
+      "ambiente.tumba": {
+          "category": "ambient",
+          "min_distance": 2.0,
+          "max_distance": 8.0,
+          "sounds": [
+            {
+              "name": "sounds/portal/portal",
+              "volume": 0.6,
+              "pitch": 1.0
+            }
+         ]
       }
    }
 }

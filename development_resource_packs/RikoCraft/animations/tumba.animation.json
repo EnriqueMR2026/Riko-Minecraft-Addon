@@ -3,12 +3,38 @@
   "animations": {
     "animation.tumba.particulas": {
       "loop": true,
-      "particle_effects": {
-        "0.0": {
-          "effect": "magia_ender",
-          "locator": "punto_particulas"
+      "animation_length": 2.0,
+      "bones": {
+        "cruz": {
+          "rotation": {
+            "0.0": [0, 0, 0],
+            "1.0": [0, 180, 0],
+            "2.0": [0, 360, 0]
+          }
+        },
+        "orbitas": {
+          "rotation": {
+            "0.0": [0, 0, 0],
+            "1.0": [0, -180, 0],
+            "2.0": [0, -360, 0]
+          }
+        },
+        "centro": {
+          "position": {
+            "0.0": [0, 0, 0],
+            "1.0": [0, 1.5, 0],
+            "2.0": [0, 0, 0]
+          },
+          "scale": {
+            "0.0": [1, 1, 1],
+            "1.0": [1.4, 1.4, 1.4],
+            "2.0": [1, 1, 1]
+          }
         }
-      }
+      },
+      "particle_effects": {
+        "0.1": { "effect": "aura_totem", "locator": "punto_particulas" }
+      }  
     }
   }
 }

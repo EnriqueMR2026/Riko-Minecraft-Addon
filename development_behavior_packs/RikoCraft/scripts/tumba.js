@@ -1,46 +1,40 @@
 import { world, system } from "@minecraft/server";
 
 // =============================================================================
-// 🪦 SISTEMA DE TUMBAS: CREACIÓN Y RESCATE DE ÍTEMS
+// SISTEMA DE TUMBAS: CREACION Y RESCATE DE ITEMS
 // =============================================================================
 export function crearTumbaJugador(player) {
     const dimension = player.dimension;
-    // Guardamos las coordenadas exactas redondeadas
     const pos = {
         x: Math.floor(player.location.x),
         y: Math.floor(player.location.y),
         z: Math.floor(player.location.z)
     };
 
-    // 1. ANTISATURACIÓN: Buscar y eliminar tumba vieja (si existe)
+    // 1. ANTISATURACION
     const tumbaViejaId = player.getDynamicProperty("id_tumba_activa");
     if (tumbaViejaId) {
         try {
             const vieja = dimension.getEntity(tumbaViejaId);
-            if (vieja) vieja.remove(); // ¡Puf! Borrada de la existencia
-        } catch(e) {} // Si no la encuentra o ya no existe, no hace nada
+            if (vieja) vieja.remove(); 
+        } catch(e) {} 
     }
 
-    // 2. CREACIÓN: Generar la nueva tumba 3D en el lugar de la muerte
+    // 2. CREACION
     const tumba = dimension.spawnEntity("rikocraft:tumba", pos);
-    tumba.nameTag = `§c☠ Tumba de ${player.name} ☠`;
+    tumba.nameTag = `§cTUMBA de ${player.name}`;
     
-    // Guardamos los datos vitales en el jugador
     player.setDynamicProperty("id_tumba_activa", tumba.id);
-    player.setDynamicProperty("tumba_timestamp", Date.now()); // Reloj de 24 horas
-    player.setDynamicProperty("tumba_pos", JSON.stringify(pos)); // Para el radar
-    
-    // 3. SECUESTRO DE HUD: Encendemos el radar
+    player.setDynamicProperty("tumba_timestamp", Date.now()); 
+    player.setDynamicProperty("tumba_pos", JSON.stringify(pos)); 
     player.setDynamicProperty("hud_tumba", true);
 
-    // 4. MUDANZA DE ÍTEMS: Pasar todo a la tumba y vaciar al jugador
+    // 3. MUDANZA DE ITEMS
     const invJugador = player.getComponent("inventory").container;
     const equipJugador = player.getComponent("equippable");
     const invTumba = tumba.getComponent("inventory").container;
 
     let slotTumba = 0;
-
-    // A) Pasamos el inventario normal
     for (let i = 0; i < invJugador.size; i++) {
         const item = invJugador.getItem(i);
         if (item) {
@@ -48,9 +42,8 @@ export function crearTumbaJugador(player) {
             slotTumba++;
         }
     }
-    invJugador.clearAll(); // Vaciamos el inventario normal del jugador
+    invJugador.clearAll(); 
 
-    // B) Pasamos la armadura y la mano izquierda (escudo/totem)
     const partesArmadura = ["Head", "Chest", "Legs", "Feet", "Offhand"];
     for (const parte of partesArmadura) {
         const equipo = equipJugador.getEquipment(parte);
@@ -58,27 +51,20 @@ export function crearTumbaJugador(player) {
             invTumba.setItem(slotTumba, equipo);
             slotTumba++;
         }
-        // Dejamos al jugador "desnudo"
         equipJugador.setEquipment(parte, undefined); 
     }
 
-    // --- NUEVO: CASTIGO DE EXPERIENCIA (50%) ---
+    // --- GESTION DE EXPERIENCIA (MARCA DE SEGURIDAD) ---
     const nivelActual = player.level || 0;
-    const xpGuardada = Math.floor(nivelActual / 2); // Calculamos la mitad
-    tumba.setDynamicProperty("xp_guardada", xpGuardada); // Guardamos la mitad en la lápida
+    const xpGuardada = Math.floor(nivelActual / 2);
+    tumba.setDynamicProperty("xp_guardada", xpGuardada);
 
-    // Le borramos la experiencia al jugador de forma segura para que despierte en 0
-    system.run(() => {
-        try {
-            player.runCommandAsync("xp -20000L @s"); // Borra todos los niveles
-            player.runCommandAsync("xp -200000 @s"); // Borra los puntitos verdes sueltos
-        } catch(e) {}
-    });
-    // -------------------------------------------
+    // NUEVO: Usamos un TAG en lugar de propiedad dinámica para máxima estabilidad
+    player.addTag("rikocraft:borrar_xp");
+    // ---------------------------------------------------
 
-    // 5. NOTIFICACIÓN: Mensaje de chat frío y directo
-    player.sendMessage(`§c☠ Has muerto. Tus cosas están a salvo en X: ${pos.x}, Y: ${pos.y}, Z: ${pos.z}`);
-    player.sendMessage(`§7Tienes exactamente §e24 horas reales §7para recuperarlas o desaparecerán para siempre.`);
+    player.sendMessage(`§c[!] Has muerto. Tus cosas estan a salvo en X: ${pos.x}, Y: ${pos.y}, Z: ${pos.z}`);
+    player.sendMessage(`§7Tienes exactamente §e24 horas reales §7para recuperarlas.`);
     player.playSound("random.toast");
 }
 
@@ -127,5 +113,88 @@ export function obtenerTextoRadarTumba(player) {
     const minutos = Math.floor((tiempoRestanteMs % (1000 * 60 * 60)) / (1000 * 60));
 
     // DIBUJAMOS EL TEXTO FINAL DEL RADAR
-    return `§c☠ TUMBA A ${distancia}m ☠\n§7X: ${posTumba.x} Y: ${posTumba.y} Z: ${posTumba.z} §8| §e⏳ ${horas}h ${minutos}m`;
+    return `§cTUMBA A: §f${distancia}m §8- §e${horas}h ${minutos}m\n§cX: §f${posTumba.x} §cY: §f${posTumba.y} §cZ: §f${posTumba.z}`;
+}
+
+// =============================================================================
+// ⛏️ RECUPERACIÓN DE TUMBA (Romper la lápida)
+// =============================================================================
+// =============================================================================
+// RECUPERACION DE TUMBA (Romper la lapida)
+// =============================================================================
+export function intentarRomperTumba(player, tumba) {
+    // 1. Verificamos si la tumba realmente le pertenece al jugador
+    const miTumbaId = player.getDynamicProperty("id_tumba_activa");
+    
+    if (tumba.id !== miTumbaId) {
+        // Si no es suya (y no es Admin), lo bloqueamos
+        if (!player.hasTag("DIOS") && !player.hasTag("ADMIN")) {
+            player.sendMessage("§c[!] Magia oscura te rechaza. Solo el dueño puede romper esta tumba.");
+            player.playSound("mob.villager.no");
+            return;
+        }
+    }
+
+    // 2. RECUPERAR EXPERIENCIA (El 50% que guardamos al morir)
+    const xpGuardada = tumba.getDynamicProperty("xp_guardada");
+    if (xpGuardada && xpGuardada > 0) {
+        player.addLevels(xpGuardada);
+        player.sendMessage(`§a[!] Has recuperado ${xpGuardada} niveles de experiencia.`);
+    }
+
+    // 3. RECUPERAR ITEMS (Los escupimos al piso de forma segura)
+    const invTumba = tumba.getComponent("inventory").container;
+    const pos = tumba.location;
+    const dim = tumba.dimension;
+    
+    for (let i = 0; i < invTumba.size; i++) {
+        const item = invTumba.getItem(i);
+        if (item) {
+            // Hacemos que los ítems salgan exactamente encima de la lapida
+            dim.spawnItem(item, { x: pos.x, y: pos.y + 0.5, z: pos.z });
+        }
+    }
+    
+    // 4. LIMPIEZA DEL SISTEMA
+    tumba.remove(); // Desaparece la lapida 3D
+    player.setDynamicProperty("hud_tumba", false); // Apagamos su radar
+    player.setDynamicProperty("id_tumba_activa", undefined); // Borramos la memoria
+    player.setDynamicProperty("tumba_pos", undefined);
+    player.setDynamicProperty("tumba_timestamp", undefined);
+    
+    // Limpiamos cualquier rastro de la marca de borrado de XP por seguridad
+    player.setDynamicProperty("xp_pendiente_borrar", undefined);
+    
+    // Efectos visuales y sonoros
+    player.playSound("random.break");
+    player.sendMessage("§a[!] Has recuperado tus cosas. La tumba se ha desvanecido.");
+}
+
+// =============================================================================
+// FUNCIÓN DE ADMINISTRACIÓN: LIMPIEZA MANUAL
+// =============================================================================
+export function adminLimpiarTumbasCercanas(player) {
+    // Solo permitimos que los administradores ejecuten esto
+    if (!player.hasTag("DIOS") && !player.hasTag("ADMIN")) {
+        player.sendMessage("§c[!] No tienes permiso para usar herramientas de limpieza.");
+        return;
+    }
+
+    const entities = player.dimension.getEntities({
+        type: "rikocraft:tumba",
+        location: player.location,
+        maxDistance: 10
+    });
+
+    if (entities.length === 0) {
+        player.sendMessage("§e[!] No se encontraron tumbas en un radio de 10 bloques.");
+        return;
+    }
+
+    for (const tumba of entities) {
+        tumba.remove();
+    }
+
+    player.sendMessage(`§a[!] Se han eliminado ${entities.length} tumba(s) del area.`);
+    player.playSound("random.explode");
 }

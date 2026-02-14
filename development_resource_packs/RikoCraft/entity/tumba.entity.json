@@ -3,23 +3,19 @@
   "minecraft:client_entity": {
     "description": {
       "identifier": "rikocraft:tumba",
-      "materials": {
-        "default": "entity_alphatest"
-      },
-      "textures": {
-        "default": "textures/entity/tumba"
-      },
-      "geometry": {
-        "default": "geometry.tumba"
-      },
+      "materials": { "default": "entity_alphatest" },
+      "textures": { "default": "textures/entity/tumba" },
+      "geometry": { "default": "geometry.tumba" },
       "particle_effects": {
-        "magia_ender": "minecraft:ender_chest_particles"
-      },
-      "scripts": {
-        "animate": [ "animacion_particulas" ]
+        "aura_totem": "minecraft:totem_particle"
       },
       "animations": {
-        "animacion_particulas": "animation.tumba.particulas"
+        "todo_junto": "animation.tumba.particulas"
+      },
+      "scripts": {
+        "animate": [
+          "todo_junto"
+        ]
       },
       "render_controllers": [ "controller.render.default" ]
     }
