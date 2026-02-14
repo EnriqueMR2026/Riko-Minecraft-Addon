@@ -8,7 +8,7 @@ world.beforeEvents.playerInteractWithEntity.subscribe((event) => {
         event.cancel = true; // Cancela la acción de "Abrir"
         const player = event.player;
         system.run(() => {
-            player.sendMessage("§c[!] Las tumbas no se abren como cofres. ¡Rómpela para recuperar tus cosas!");
+            player.sendMessage("§c[!] Las tumbas no se abren como cofres. ¡Rómpela/Tocala para recuperar tus cosas!");
         });
     }
 });
@@ -27,19 +27,18 @@ export function crearTumbaJugador(player) {
     // Creamos un tag único sin espacios para rastrear las tumbas de este jugador
     const tagDueno = `dueno_${player.name.replace(/ /g, "_")}`;
 
-    // 1. ANTISATURACION
-    const tumbaViejaId = player.getDynamicProperty("id_tumba_activa");
-    if (tumbaViejaId) {
+    // 1. ANTISATURACION EXTREMA (Sincrónico y en todas las dimensiones)
+    const dimensionesArray = ["overworld", "nether", "the_end"];
+    for (const dimName of dimensionesArray) {
         try {
-            const vieja = dimension.getEntity(tumbaViejaId);
-            if (vieja) vieja.remove(); 
-        } catch(e) {} 
+            const dimTemp = world.getDimension(dimName);
+            // Buscamos cualquier tumba cargada que tenga tu etiqueta de dueño
+            const tumbasViejas = dimTemp.getEntities({ type: "rikocraft:tumba", tags: [tagDueno] });
+            for (const vieja of tumbasViejas) {
+                vieja.remove(); // La borramos de la existencia al instante
+            }
+        } catch(e) {}
     }
-    
-    // Mata tumbas viejas de este jugador si el área está cargada (Evita duplicadas)
-    try {
-        dimension.runCommandAsync(`kill @e[type=rikocraft:tumba,tag="${tagDueno}"]`);
-    } catch(e) {}
 
     // 2. CREACION
     const tumba = dimension.spawnEntity("rikocraft:tumba", pos);
@@ -115,14 +114,13 @@ export function obtenerTextoRadarTumba(player) {
         player.setDynamicProperty("hud_tumba", false); // Apagamos el radar
         player.sendMessage("§c[!] Tu tumba ha expirado después de 24 horas. Tus objetos se han perdido en el vacío.");
         
-        // Buscamos la entidad vieja y la borramos por si sigue en el mundo
-        const tumbaViejaId = player.getDynamicProperty("id_tumba_activa");
-        if (tumbaViejaId) {
-            try {
-                const vieja = player.dimension.getEntity(tumbaViejaId);
-                if (vieja) vieja.remove();
-            } catch(e) {}
-        }
+        // Buscamos la entidad vieja usando el Tag y la borramos por si sigue en el mundo
+        const tagDueno = `dueno_${player.name.replace(/ /g, "_")}`;
+        try {
+            const tumbasViejas = player.dimension.getEntities({ type: "rikocraft:tumba", tags: [tagDueno] });
+            for (const vieja of tumbasViejas) vieja.remove();
+        } catch(e) {}
+        
         return null;
     }
 
