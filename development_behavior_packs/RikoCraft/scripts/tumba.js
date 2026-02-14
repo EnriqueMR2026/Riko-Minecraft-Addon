@@ -1,6 +1,19 @@
 import { world, system } from "@minecraft/server";
 
 // =============================================================================
+// BLOQUEO DE INVENTARIO (EVITA QUE ABRAN LA TUMBA COMO COFRE)
+// =============================================================================
+world.beforeEvents.playerInteractWithEntity.subscribe((event) => {
+    if (event.target.typeId === "rikocraft:tumba") {
+        event.cancel = true; // Cancela la acción de "Abrir"
+        const player = event.player;
+        system.run(() => {
+            player.sendMessage("§c[!] Las tumbas no se abren como cofres. ¡Rómpela para recuperar tus cosas!");
+        });
+    }
+});
+
+// =============================================================================
 // SISTEMA DE TUMBAS: CREACION Y RESCATE DE ITEMS
 // =============================================================================
 export function crearTumbaJugador(player) {
@@ -11,6 +24,9 @@ export function crearTumbaJugador(player) {
         z: Math.floor(player.location.z)
     };
 
+    // Creamos un tag único sin espacios para rastrear las tumbas de este jugador
+    const tagDueno = `dueno_${player.name.replace(/ /g, "_")}`;
+
     // 1. ANTISATURACION
     const tumbaViejaId = player.getDynamicProperty("id_tumba_activa");
     if (tumbaViejaId) {
@@ -19,10 +35,16 @@ export function crearTumbaJugador(player) {
             if (vieja) vieja.remove(); 
         } catch(e) {} 
     }
+    
+    // Mata tumbas viejas de este jugador si el área está cargada (Evita duplicadas)
+    try {
+        dimension.runCommandAsync(`kill @e[type=rikocraft:tumba,tag="${tagDueno}"]`);
+    } catch(e) {}
 
     // 2. CREACION
     const tumba = dimension.spawnEntity("rikocraft:tumba", pos);
     tumba.nameTag = `§cTUMBA de ${player.name}`;
+    tumba.addTag(tagDueno); // Le pegamos el tag de propiedad
     
     player.setDynamicProperty("id_tumba_activa", tumba.id);
     player.setDynamicProperty("tumba_timestamp", Date.now()); 
@@ -58,6 +80,11 @@ export function crearTumbaJugador(player) {
     const nivelActual = player.level || 0;
     const xpGuardada = Math.floor(nivelActual / 2);
     tumba.setDynamicProperty("xp_guardada", xpGuardada);
+
+    // Vaciamos la experiencia del jugador de forma real y directa
+    try {
+        player.runCommandAsync("xp -25000L @s");
+    } catch(e) {}
 
     // NUEVO: Usamos un TAG en lugar de propiedad dinámica para máxima estabilidad
     player.addTag("rikocraft:borrar_xp");
@@ -117,9 +144,6 @@ export function obtenerTextoRadarTumba(player) {
 }
 
 // =============================================================================
-// ⛏️ RECUPERACIÓN DE TUMBA (Romper la lápida)
-// =============================================================================
-// =============================================================================
 // RECUPERACION DE TUMBA (Romper la lapida)
 // =============================================================================
 export function intentarRomperTumba(player, tumba) {
@@ -127,6 +151,14 @@ export function intentarRomperTumba(player, tumba) {
     const miTumbaId = player.getDynamicProperty("id_tumba_activa");
     
     if (tumba.id !== miTumbaId) {
+        // TRAMPA PARA TUMBAS VIEJAS: Si el chunk estaba descargado y sobrevivió
+        const tagDueno = `dueno_${player.name.replace(/ /g, "_")}`;
+        if (tumba.hasTag(tagDueno)) {
+            tumba.remove();
+            player.sendMessage("§c[!] Esta era una tumba antigua. Se ha hecho polvo y sus objetos se perdieron.");
+            return;
+        }
+
         // Si no es suya (y no es Admin), lo bloqueamos
         if (!player.hasTag("DIOS") && !player.hasTag("ADMIN")) {
             player.sendMessage("§c[!] Magia oscura te rechaza. Solo el dueño puede romper esta tumba.");
