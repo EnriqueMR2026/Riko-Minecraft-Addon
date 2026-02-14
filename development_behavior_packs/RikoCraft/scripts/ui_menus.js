@@ -1388,13 +1388,13 @@ function formCrearZonaAdmin(player) {
     const form = new ModalFormData()
         .title("Configurar Zona 3D")
         .textField("Nombre de la Zona:", "Ej: Lobby PvP")
-        .toggle("Ver Bordes (Admin)", true)
-        .toggle("PVP Activado", false)
-        .toggle("Abrir Cofres", false)
-        .toggle("Usar Puertas", true)
-        .toggle("Efectos de Clan", true)
-        .toggle("Mobs Hostiles", false)
-        .toggle("Mobs Pasivos", false);
+        .toggle("Ver Bordes (Admin)", { defaultValue: true })  // <--- CORREGIDO AQUÍ
+        .toggle("PVP Activado", { defaultValue: false })       // <--- CORREGIDO AQUÍ
+        .toggle("Abrir Cofres", { defaultValue: false })       // <--- CORREGIDO AQUÍ
+        .toggle("Usar Puertas", { defaultValue: true })        // <--- CORREGIDO AQUÍ
+        .toggle("Efectos de Clan", { defaultValue: true })     // <--- CORREGIDO AQUÍ
+        .toggle("Mobs Hostiles", { defaultValue: false })      // <--- CORREGIDO AQUÍ
+        .toggle("Mobs Pasivos", { defaultValue: false });      // <--- CORREGIDO AQUÍ
 
     // Pequeña pausa para asegurar que se abra el Modal fluido
     system.runTimeout(() => {
@@ -1416,7 +1416,7 @@ function formCrearZonaAdmin(player) {
             crearZonaProtegida(player, nombre, JSON.parse(p1Str), JSON.parse(p2Str), opciones);
             
             player.sendMessage(`§e[OK] Zona "${nombre}" creada.`);
-            player.sendMessage(`§7Bordes:${opciones.bordes ? "§aON" : "§cOFF"} | PvP:${opciones.pvp ? "§aON" : "§cOFF"} | Mobs:${opciones.hostiles ? "§aON" : "§cOFF"}`);
+            player.sendMessage(`§7Bordes: ${opciones.bordes ? "§aON" : "§cOFF"} §7| PvP: ${opciones.pvp ? "§aON" : "§cOFF"} §7| Mobs: ${opciones.hostiles ? "§aON" : "§cOFF"}`);
             player.playSound("random.levelup");
         });
     }, 5);
