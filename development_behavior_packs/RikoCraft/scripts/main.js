@@ -640,6 +640,28 @@ system.runInterval(() => {
 }, 10); // Revisamos cada medio segundo
 
 // =============================================================================
+// 🧹 RECOLECTOR DE XP DE TUMBAS (Fuerza Bruta)
+// =============================================================================
+system.runInterval(() => {
+    // Buscamos a los jugadores que acaban de revivir y tienen la marca
+    for (const p of world.getPlayers({ tags: ["rikocraft:borrar_xp"] })) {
+        
+        // 1. Quitamos la etiqueta PRIMERO. Así evitamos el bucle infinito si el resto del código falla.
+        p.removeTag("rikocraft:borrar_xp");
+
+        try {
+            // 2. API Nativa: Le restamos los niveles exactos que tenga
+            const niveles = p.level;
+            if (niveles > 0) p.addLevels(-niveles);
+            
+            // 3. Comandos de refuerzo por si queda algún rastro en la barra
+            p.runCommandAsync("xp -25000 @s");
+            p.runCommandAsync("xp -25000L @s");
+        } catch(e) {}
+    }
+}, 10);
+
+// =============================================================================
 // ⚔️ SISTEMA DE XP POR KILLS (PVE Y PVP) + AUTO LEVEL UP
 // =============================================================================
 world.afterEvents.entityDie.subscribe((event) => {

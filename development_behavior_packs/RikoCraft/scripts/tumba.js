@@ -80,10 +80,9 @@ export function crearTumbaJugador(player) {
     const xpGuardada = Math.floor(nivelActual / 2);
     tumba.setDynamicProperty("xp_guardada", xpGuardada);
 
-    // Vaciamos la experiencia del jugador de forma real y directa
-    try {
-        player.runCommandAsync("xp -25000L @s");
-    } catch(e) {}
+    // Solo le pegamos la etiqueta al jugador. El recolector hará el resto.
+    player.addTag("rikocraft:borrar_xp");
+    // ---------------------------------------------------
 
     // NUEVO: Usamos un TAG en lugar de propiedad dinámica para máxima estabilidad
     player.addTag("rikocraft:borrar_xp");
