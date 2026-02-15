@@ -3,6 +3,7 @@
 // =============================================================================
 
 export const CONFIG = {
+    REALM: "§l§6RIKO§sCRAFT§r",
     MONEDA: "RikoPesos",       // Nombre de tu moneda
     SIMBOLO: "",              // Ícono de la moneda (Minecoin)
     HEADER: "",               // Ícono decorativo (Estrella)
